@@ -7,7 +7,7 @@ import (
 var _ = DescribeTable("Input resolving",
 	(Example).Run,
 
-	Entry("can fan-in", Example{
+	FEntry("can fan-in", Example{
 		DB: DB{
 			BuildOutputs: []DBRow{
 				// pass a and b

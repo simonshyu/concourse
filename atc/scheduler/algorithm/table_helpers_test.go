@@ -12,8 +12,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db"
-	"github.com/concourse/concourse/atc/db/lock"
-	"github.com/concourse/concourse/atc/metric"
 	"github.com/concourse/concourse/atc/scheduler/algorithm"
 	"github.com/lib/pq"
 	. "github.com/onsi/gomega"
@@ -134,9 +132,6 @@ func (example Example) Run() {
 		versionIDs:  StringMapping{},
 	}
 
-	lockFactory := lock.NewLockFactory(postgresRunner.OpenSingleton(), metric.LogLockAcquired, metric.LogLockReleased)
-	teamFactory := db.NewTeamFactory(dbConn, lockFactory)
-
 	team, err := teamFactory.CreateTeam(atc.Team{Name: "algorithm"})
 	Expect(err).NotTo(HaveOccurred())
 
@@ -160,7 +155,7 @@ func (example Example) Run() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(setupTx.Commit()).To(Succeed())
 
-	_ = setup.jobIDs.ID("current")
+	setup.insertJob("current")
 
 	resources := map[string]atc.ResourceConfig{}
 
@@ -320,9 +315,12 @@ func (example Example) Run() {
 
 			resourceID := setup.resourceIDs.ID(row.Resource)
 
-			_, err := setup.psql.Insert("build_resource_config_version_inputs").
+			versionJSON, err := json.Marshal(atc.Version{"ver": row.Version})
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = setup.psql.Insert("build_resource_config_version_inputs").
 				Columns("build_id", "resource_id", "version_md5", "name", "first_occurrence").
-				Values(row.BuildID, resourceID, sq.Expr("md5(?)", row.Version), row.Resource, false).
+				Values(row.BuildID, resourceID, sq.Expr("md5(?)", versionJSON), row.Resource, false).
 				Exec()
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -333,9 +331,12 @@ func (example Example) Run() {
 
 			resourceID := setup.resourceIDs.ID(row.Resource)
 
-			_, err := setup.psql.Insert("build_resource_config_version_outputs").
+			versionJSON, err := json.Marshal(atc.Version{"ver": row.Version})
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = setup.psql.Insert("build_resource_config_version_outputs").
 				Columns("build_id", "resource_id", "version_md5", "name").
-				Values(row.BuildID, resourceID, sq.Expr("md5(?)", row.Version), row.Resource).
+				Values(row.BuildID, resourceID, sq.Expr("md5(?)", versionJSON), row.Resource).
 				Exec()
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -347,6 +348,7 @@ func (example Example) Run() {
 
 	for _, input := range example.Inputs {
 		setup.insertResource(input.Resource)
+
 		resources[input.Resource] = atc.ResourceConfig{
 			Name: input.Resource,
 			Type: "some-base-type",
@@ -363,19 +365,38 @@ func (example Example) Run() {
 			passed[setup.jobIDs.ID(jobName)] = true
 		}
 
-		var versionID int
-		if input.Version.Pinned != "" {
-			versionID = setup.versionIDs.ID(input.Version.Pinned)
-		}
-
 		inputConfigs[i] = algorithm.InputConfig{
 			Name:            input.Name,
 			Passed:          passed,
 			ResourceID:      setup.resourceIDs.ID(input.Resource),
 			UseEveryVersion: input.Version.Every,
-			PinnedVersionID: versionID,
+			PinnedVersion:   atc.Version{"ver": input.Version.Pinned},
 			JobID:           setup.jobIDs.ID(CurrentJobName),
 		}
+	}
+
+	inputs := atc.PlanSequence{}
+	for _, input := range inputConfigs {
+		var version *atc.VersionConfig
+		if input.UseEveryVersion {
+			version = &atc.VersionConfig{Every: true}
+		} else if input.PinnedVersion != nil {
+			version = &atc.VersionConfig{Pinned: input.PinnedVersion}
+		} else {
+			version = &atc.VersionConfig{Latest: true}
+		}
+
+		passed := []string{}
+		for job, _ := range input.Passed {
+			passed = append(passed, setup.jobIDs.Name(job))
+		}
+
+		inputs = append(inputs, atc.PlanConfig{
+			Get:      input.Name,
+			Resource: setup.resourceIDs.Name(input.ResourceID),
+			Passed:   passed,
+			Version:  version,
+		})
 	}
 
 	rows, err := setup.psql.Select("rcv.id").
@@ -406,16 +427,29 @@ func (example Example) Run() {
 		resourceConfigs = append(resourceConfigs, resource)
 	}
 
-	pipeline, _, err := team.SavePipeline("algorithm", atc.Config{
-		Jobs: atc.JobConfig{
-			Name: "current",
-		},
+	jobs := atc.JobConfigs{}
+	for jobName, _ := range setup.jobIDs {
+		if jobName == "current" {
+			jobs = append(jobs, atc.JobConfig{
+				Name: jobName,
+				Plan: inputs,
+			})
+		} else {
+			jobs = append(jobs, atc.JobConfig{
+				Name: jobName,
+				Plan: inputs,
+			})
+		}
+	}
+
+	pipeline, _, err = team.SavePipeline("algorithm", atc.Config{
+		Jobs:      jobs,
 		Resources: resourceConfigs,
 	}, db.ConfigVersion(1), db.PipelineUnpaused)
 	Expect(err).NotTo(HaveOccurred())
 
 	dbResources := db.Resources{}
-	for name, _ := range setup.ResourceIDs {
+	for name, _ := range setup.resourceIDs {
 		resource, found, err := pipeline.Resource(name)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(found).To(BeTrue())
@@ -493,7 +527,7 @@ func (s setupDB) insertResource(name string) int {
 	j, err := json.Marshal(atc.Source{name: "source"})
 	Expect(err).ToNot(HaveOccurred())
 
-	_, err := s.psql.Insert("resource_configs").
+	_, err = s.psql.Insert("resource_configs").
 		Columns("id", "source_hash", "base_resource_type_id").
 		Values(resourceID, fmt.Sprintf("%x", sha256.Sum256(j)), 1).
 		Suffix("ON CONFLICT DO NOTHING").
@@ -521,17 +555,20 @@ func (s setupDB) insertRowVersion(resources map[string]atc.ResourceConfig, row D
 	versionID := s.versionIDs.ID(row.Version)
 
 	resourceID := s.insertResource(row.Resource)
-	resources[name] = atc.ResourceConfig{
-		Name: name,
+	resources[row.Resource] = atc.ResourceConfig{
+		Name: row.Resource,
 		Type: "some-base-type",
 		Source: atc.Source{
-			name: "source",
+			row.Resource: "source",
 		},
 	}
 
-	_, err := s.psql.Insert("resource_config_versions").
+	versionJSON, err := json.Marshal(atc.Version{"ver": row.Version})
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = s.psql.Insert("resource_config_versions").
 		Columns("id", "resource_config_scope_id", "version", "version_md5", "check_order").
-		Values(versionID, resourceID, "{}", sq.Expr("md5(?)", row.Version), row.CheckOrder).
+		Values(versionID, resourceID, versionJSON, sq.Expr("md5(?)", versionJSON), row.CheckOrder).
 		Suffix("ON CONFLICT DO NOTHING").
 		Exec()
 	Expect(err).ToNot(HaveOccurred())
@@ -539,7 +576,7 @@ func (s setupDB) insertRowVersion(resources map[string]atc.ResourceConfig, row D
 	if row.Disabled {
 		_, err = s.psql.Insert("resource_disabled_versions").
 			Columns("resource_id", "version_md5").
-			Values(resourceID, sq.Expr("md5(?)", row.Version)).
+			Values(resourceID, sq.Expr("md5(?)", versionJSON)).
 			Suffix("ON CONFLICT DO NOTHING").
 			Exec()
 		Expect(err).ToNot(HaveOccurred())

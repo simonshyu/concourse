@@ -132,6 +132,7 @@ func (im *inputMapper) MapInputs(
 
 		inputConfigs = append(inputConfigs, inputConfig)
 	}
+	fmt.Println(inputConfigs)
 
 	return im.computeNextInputs(inputConfigs, versions)
 }
