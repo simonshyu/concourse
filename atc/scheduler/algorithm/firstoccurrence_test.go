@@ -76,11 +76,10 @@ var _ = Describe("Resolve", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(setupTx.Commit()).To(Succeed())
 
-		_ = setup.jobIDs.ID("current")
-
 		resources := map[string]atc.ResourceConfig{}
 
 		// insert two jobs
+		setup.insertJob("j1")
 		setup.insertJob("j2")
 
 		// insert resource and two resource versions
@@ -161,7 +160,7 @@ var _ = Describe("Resolve", func() {
 		pipeline, _, err = team.SavePipeline("algorithm", atc.Config{
 			Jobs: atc.JobConfigs{
 				{
-					Name: "current",
+					Name: "j1",
 					Plan: atc.PlanSequence{
 						{
 							Get:      "some-input",
@@ -186,6 +185,9 @@ var _ = Describe("Resolve", func() {
 		job, found, err := pipeline.Job("j1")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
+
+		versionsDB.JobIDs = setup.jobIDs
+		versionsDB.ResourceIDs = setup.resourceIDs
 
 		inputMapper := algorithm.NewInputMapper()
 

@@ -6,10 +6,10 @@ import (
 	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db"
-	"github.com/concourse/concourse/atc/scheduler/algorithm"
 	"github.com/concourse/concourse/atc/db/dbfakes"
 	. "github.com/concourse/concourse/atc/scheduler"
-	"github.com/concourse/concourse/atc/scheduler/inputmapper/inputmapperfakes"
+	"github.com/concourse/concourse/atc/scheduler/algorithm"
+	"github.com/concourse/concourse/atc/scheduler/algorithm/algorithmfakes"
 	"github.com/concourse/concourse/atc/scheduler/schedulerfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -18,7 +18,7 @@ import (
 var _ = Describe("Scheduler", func() {
 	var (
 		fakePipeline     *dbfakes.FakePipeline
-		fakeInputMapper  *inputmapperfakes.FakeInputMapper
+		fakeInputMapper  *algorithmfakes.FakeInputMapper
 		fakeBuildStarter *schedulerfakes.FakeBuildStarter
 
 		scheduler *Scheduler
@@ -28,11 +28,10 @@ var _ = Describe("Scheduler", func() {
 
 	BeforeEach(func() {
 		fakePipeline = new(dbfakes.FakePipeline)
-		fakeInputMapper = new(inputmapperfakes.FakeInputMapper)
+		fakeInputMapper = new(algorithmfakes.FakeInputMapper)
 		fakeBuildStarter = new(schedulerfakes.FakeBuildStarter)
 
 		scheduler = &Scheduler{
-			Pipeline:     fakePipeline,
 			InputMapper:  fakeInputMapper,
 			BuildStarter: fakeBuildStarter,
 		}
@@ -42,7 +41,7 @@ var _ = Describe("Scheduler", func() {
 
 	Describe("Schedule", func() {
 		var (
-			versionsDB             *algorithm.VersionsDB
+			versionsDB             *db.VersionsDB
 			fakeJob                *dbfakes.FakeJob
 			fakeResource           *dbfakes.FakeResource
 			nextPendingBuilds      []db.Build
@@ -64,7 +63,7 @@ var _ = Describe("Scheduler", func() {
 		})
 
 		JustBeforeEach(func() {
-			versionsDB = &algorithm.VersionsDB{JobIDs: map[string]int{"j1": 1}}
+			versionsDB = &db.VersionsDB{JobIDs: map[string]int{"j1": 1}}
 
 			var waiter interface{ Wait() }
 

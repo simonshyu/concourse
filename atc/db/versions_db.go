@@ -155,13 +155,13 @@ func (versions VersionsDB) FindVersionOfResource(resourceID int, version atc.Ver
 	}
 
 	var id int
-	err = psql.Select("id").
+	err = psql.Select("rcv.id").
 		From("resource_config_versions rcv").
 		Join("resources r ON r.resource_config_scope_id = rcv.resource_config_scope_id").
 		Where(sq.Eq{
 			"r.id": resourceID,
 		}).
-		Where(sq.Expr("v.version_md5 = md5(?)", versionJSON)).
+		Where(sq.Expr("rcv.version_md5 = md5(?)", versionJSON)).
 		RunWith(versions.Conn).
 		QueryRow().
 		Scan(&id)

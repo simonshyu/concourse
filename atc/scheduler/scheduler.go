@@ -6,10 +6,11 @@ import (
 	"code.cloudfoundry.org/lager"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db"
+	"github.com/concourse/concourse/atc/scheduler/algorithm"
 )
 
 type Scheduler struct {
-	InputMapper  InputMapper
+	InputMapper  algorithm.InputMapper
 	BuildStarter BuildStarter
 }
 
@@ -24,25 +25,25 @@ func (s *Scheduler) Schedule(
 
 	jStart := time.Now()
 
-	inputMapping, err := inputMapper.MapInputs(logger, versions, job, resources)
+	inputMapping, resolved, err := s.InputMapper.MapInputs(versions, job, resources)
 	if err != nil {
-		return err
+		return jobSchedulingTime, err
 	}
 
-	err = job.SaveNextInputMapping(inputMapping, ok)
+	err = job.SaveNextInputMapping(inputMapping, resolved)
 	if err != nil {
 		logger.Error("failed-to-save-next-input-mapping", err)
-		return err
+		return jobSchedulingTime, err
 	}
 
-	err := s.ensurePendingBuildExists(logger, job, resources)
+	err = s.ensurePendingBuildExists(logger, job, resources)
 	jobSchedulingTime[job.Name()] = time.Since(jStart)
 
 	if err != nil {
 		return jobSchedulingTime, err
 	}
 
-	err = s.BuildStarter.TryStartPendingBuildsForJob(logger, job, resources, resourceTypes, nextPendingBuilds)
+	err = s.BuildStarter.TryStartPendingBuildsForJob(logger, job, resources, resourceTypes)
 	jobSchedulingTime[job.Name()] = jobSchedulingTime[job.Name()] + time.Since(jStart)
 
 	if err != nil {
@@ -57,7 +58,7 @@ func (s *Scheduler) ensurePendingBuildExists(
 	job db.Job,
 	resources db.Resources,
 ) error {
-	inputMapping, found, err := job.GetFullNextBuildInputs()
+	buildInputs, found, err := job.GetFullNextBuildInputs()
 	if err != nil {
 		logger.Error("failed-to-fetch-next-build-inputs", err)
 		return err
@@ -69,11 +70,16 @@ func (s *Scheduler) ensurePendingBuildExists(
 		return nil
 	}
 
+	var inputMapping map[string]db.BuildInput
+	for _, input := range buildInputs {
+		inputMapping[input.Name] = input
+	}
+
 	for _, inputConfig := range job.Config().Inputs() {
 		inputSource, ok := inputMapping[inputConfig.Name]
 
 		//trigger: true, and the version has not been used
-		if ok && inputSource.InputVersion.FirstOccurrence && inputConfig.Trigger {
+		if ok && inputSource.FirstOccurrence && inputConfig.Trigger {
 			err := job.EnsurePendingBuildExists()
 			if err != nil {
 				logger.Error("failed-to-ensure-pending-build-exists", err)

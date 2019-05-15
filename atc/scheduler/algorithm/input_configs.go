@@ -14,18 +14,11 @@ type InputConfigs []InputConfig
 
 type InputConfig struct {
 	Name            string
-	JobName         string
 	Passed          db.JobSet
 	UseEveryVersion bool
 	PinnedVersion   atc.Version
 	ResourceID      int
 	JobID           int
-}
-
-//go:generate counterfeiter . InputConfigs
-
-type Computer interface {
-	ComputeNextInputs(versionsDB *db.VersionsDB) (db.InputMapping, bool, error)
 }
 
 //go:generate counterfeiter . InputMapper
@@ -50,7 +43,11 @@ type PinnedVersionNotFoundError struct {
 }
 
 func (e PinnedVersionNotFoundError) Error() string {
-	return fmt.Sprintf("pinned version %v not found", e.PinnedVersion)
+	var text string
+	for k, v := range e.PinnedVersion {
+		text += fmt.Sprintf(" %s:%s", k, v)
+	}
+	return fmt.Sprintf("pinned version%s not found", text)
 }
 
 type NoSatisfiableBuildsForPassedJobError struct {
@@ -132,7 +129,6 @@ func (im *inputMapper) MapInputs(
 
 		inputConfigs = append(inputConfigs, inputConfig)
 	}
-	fmt.Println(inputConfigs)
 
 	return im.computeNextInputs(inputConfigs, versions)
 }
@@ -147,7 +143,6 @@ func (im *inputMapper) computeNextInputs(configs InputConfigs, versionsDB *db.Ve
 
 	valid := true
 	for i, config := range configs {
-
 		inputResult := db.InputResult{}
 
 		if versions[i] == nil {
@@ -164,7 +159,7 @@ func (im *inputMapper) computeNextInputs(configs InputConfigs, versionsDB *db.Ve
 				return nil, false, err
 			}
 
-			mapping[config.Name] = db.InputResult{
+			inputResult = db.InputResult{
 				Input: db.AlgorithmInput{
 					AlgorithmVersion: db.AlgorithmVersion{
 						ResourceID: config.ResourceID,
