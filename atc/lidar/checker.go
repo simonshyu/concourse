@@ -18,7 +18,7 @@ var ErrFailedToAcquireLock = errors.New("failed to acquire lock")
 
 func NewChecker(
 	logger lager.Logger,
-	resourceCheckFactory db.ResourceCheckFactory,
+	checkFactory db.CheckFactory,
 	resourceFactory resource.ResourceFactory,
 	secrets creds.Secrets,
 	pool worker.Pool,
@@ -26,7 +26,7 @@ func NewChecker(
 ) *checker {
 	return &checker{
 		logger,
-		resourceCheckFactory,
+		checkFactory,
 		resourceFactory,
 		secrets,
 		pool,
@@ -35,17 +35,17 @@ func NewChecker(
 }
 
 type checker struct {
-	logger               lager.Logger
-	resourceCheckFactory db.ResourceCheckFactory
-	resourceFactory      resource.ResourceFactory
-	secrets              creds.Secrets
-	pool                 worker.Pool
-	externalURL          string
+	logger          lager.Logger
+	checkFactory    db.CheckFactory
+	resourceFactory resource.ResourceFactory
+	secrets         creds.Secrets
+	pool            worker.Pool
+	externalURL     string
 }
 
 func (c *checker) Run(ctx context.Context) error {
 
-	resourceChecks, err := c.resourceCheckFactory.ResourceChecks()
+	checks, err := c.checkFactory.Checks()
 	if err != nil {
 		c.logger.Error("failed-to-fetch-resource-checks", err)
 		return err
@@ -53,9 +53,9 @@ func (c *checker) Run(ctx context.Context) error {
 
 	waitGroup := new(sync.WaitGroup)
 
-	for _, resourceCheck := range resourceChecks {
+	for _, check := range checks {
 		waitGroup.Add(1)
-		go c.check(ctx, resourceCheck, waitGroup)
+		go c.check(ctx, check, waitGroup)
 	}
 
 	waitGroup.Wait()
@@ -63,15 +63,15 @@ func (c *checker) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *checker) check(ctx context.Context, resourceCheck db.ResourceCheck, waitGroup *sync.WaitGroup) error {
+func (c *checker) check(ctx context.Context, check db.Check, waitGroup *sync.WaitGroup) error {
 	defer waitGroup.Done()
 
-	if err := c.tryCheck(ctx, resourceCheck); err != nil {
+	if err := c.tryCheck(ctx, check); err != nil {
 		if err == ErrFailedToAcquireLock {
 			return err
 		}
 
-		if err = resourceCheck.FinishWithError(err.Error()); err != nil {
+		if err = check.FinishWithError(err.Error()); err != nil {
 			c.logger.Error("failed-to-update-resource-check-error", err)
 			return err
 		}
@@ -80,34 +80,17 @@ func (c *checker) check(ctx context.Context, resourceCheck db.ResourceCheck, wai
 	return nil
 }
 
-func (c *checker) tryCheck(ctx context.Context, resourceCheck db.ResourceCheck) error {
+func (c *checker) tryCheck(ctx context.Context, check db.Check) error {
 
-	resource, err := resourceCheck.Resource()
+	resourceConfigScope, err := check.ResourceConfigScope()
+	if err != nil {
+		c.logger.Error("failed-to-fetch-resource-config-scope", err)
+		return err
+	}
+
+	resource, err := resourceConfigScope.AnyResource()
 	if err != nil {
 		c.logger.Error("failed-to-fetch-resource", err)
-		return err
-	}
-
-	resourceTypes, err := resource.ResourceTypes()
-	if err != nil {
-		c.logger.Error("failed-to-fetch-resource-types", err)
-		return err
-	}
-
-	variables := creds.NewVariables(c.secrets, resource.PipelineName(), resource.TeamName())
-
-	source, err := creds.NewSource(variables, resource.Source()).Evaluate()
-	if err != nil {
-		c.logger.Error("failed-to-evaluate-source", err)
-		return err
-	}
-
-	versionedResourceTypes := creds.NewVersionedResourceTypes(variables, resourceTypes.Deserialize())
-
-	// This could have changed based on new variable interpolation so update it
-	resourceConfigScope, err := resource.SetResourceConfig(source, versionedResourceTypes)
-	if err != nil {
-		c.logger.Error("failed-to-update-resource-config", err)
 		return err
 	}
 
@@ -117,7 +100,7 @@ func (c *checker) tryCheck(ctx context.Context, resourceCheck db.ResourceCheck) 
 		"resource_config_id": resourceConfigScope.ResourceConfig().ID(),
 	})
 
-	lock, acquired, err := resourceConfigScope.AcquireResourceCheckingLock(logger)
+	lock, acquired, err := resourceConfigScope.AcquireCheckingLock(logger)
 	if err != nil {
 		logger.Error("failed-to-get-lock", err)
 		return ErrFailedToAcquireLock
@@ -130,7 +113,7 @@ func (c *checker) tryCheck(ctx context.Context, resourceCheck db.ResourceCheck) 
 
 	defer lock.Release()
 
-	if err = resourceCheck.Start(); err != nil {
+	if err = check.Start(); err != nil {
 		logger.Error("failed-to-start-resource-check", err)
 		return err
 	}
@@ -153,15 +136,15 @@ func (c *checker) tryCheck(ctx context.Context, resourceCheck db.ResourceCheck) 
 		return err
 	}
 
-	deadline, cancel := context.WithTimeout(ctx, resourceCheck.Timeout())
+	deadline, cancel := context.WithTimeout(ctx, check.Timeout())
 	defer cancel()
 
-	logger.Debug("checking", lager.Data{"from": resourceCheck.FromVersion()})
+	logger.Debug("checking", lager.Data{"from": check.FromVersion()})
 
-	versions, err := checkable.Check(deadline, source, resourceCheck.FromVersion())
+	versions, err := checkable.Check(deadline, source, check.FromVersion())
 	if err != nil {
 		if err == context.DeadlineExceeded {
-			return fmt.Errorf("Timed out after %v while checking for new versions", resourceCheck.Timeout())
+			return fmt.Errorf("Timed out after %v while checking for new versions", check.Timeout())
 		}
 		return err
 	}
@@ -171,7 +154,7 @@ func (c *checker) tryCheck(ctx context.Context, resourceCheck db.ResourceCheck) 
 		return err
 	}
 
-	return resourceCheck.Finish()
+	return check.Finish()
 }
 
 func (c *checker) createCheckable(
@@ -208,7 +191,8 @@ func (c *checker) createCheckable(
 	}
 
 	owner := db.NewResourceConfigCheckSessionContainerOwner(
-		dbResourceConfig,
+		step.metadata.ResourceConfigID,
+		step.metadata.BaseResourceTypeID,
 		db.ContainerOwnerExpiries{
 			GraceTime: 2 * time.Minute,
 			Min:       5 * time.Minute,

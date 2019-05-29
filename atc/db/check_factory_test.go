@@ -6,23 +6,23 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ResourceCheckFactory", func() {
-	Describe("ResourceChecks", func() {
+var _ = Describe("CheckFactory", func() {
+	Describe("Checks", func() {
 		Context("when looking up the resource check succeeds", func() {
-			var resourceCheck db.ResourceCheck
+			var check db.Check
 			var err error
 
 			BeforeEach(func() {
-				resourceCheck, err = resourceCheckFactory.CreateResourceCheck(1, db.CheckTypeResource)
+				check, err = checkFactory.CreateCheck(1, db.CheckTypeResource)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
 			FIt("returns the resource check", func() {
-				checks, err := resourceCheckFactory.ResourceChecks()
+				checks, err := checkFactory.Checks()
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(checks).To(HaveLen(1))
-				Expect(checks[0]).To(Equal(resourceCheck))
+				Expect(checks[0]).To(Equal(check))
 			})
 		})
 	})
