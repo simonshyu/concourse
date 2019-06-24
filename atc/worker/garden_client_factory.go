@@ -3,8 +3,8 @@ package worker
 import (
 	"net/http"
 
-	gclient "code.cloudfoundry.org/garden/client"
-	gconn "code.cloudfoundry.org/garden/client/connection"
+	"github.com/concourse/concourse/atc/worker/gclient"
+	gconn "github.com/concourse/concourse/atc/worker/gclient/client/connection"
 	"code.cloudfoundry.org/garden/routes"
 	"code.cloudfoundry.org/lager"
 	"github.com/concourse/concourse/atc/worker/transport"
@@ -64,5 +64,5 @@ func (gcf *gardenClientFactory) NewClient() gclient.Client {
 		Req:              rata.NewRequestGenerator("http://127.0.0.1:8080", routes.Routes),
 	}
 
-	return gclient.New(NewRetryableConnection(gconn.NewWithHijacker(hijackStreamer, gcf.logger)))
+	return gclient.NewClient(NewRetryableConnection(gconn.NewWithHijacker(hijackStreamer, gcf.logger)))
 }

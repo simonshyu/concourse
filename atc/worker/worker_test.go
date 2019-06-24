@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"time"
 
-	"code.cloudfoundry.org/garden/gardenfakes"
 	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/cloudfoundry/bosh-cli/director/template"
 	"github.com/concourse/concourse/atc"
@@ -21,6 +20,7 @@ import (
 	"github.com/concourse/concourse/atc/db/dbfakes"
 	. "github.com/concourse/concourse/atc/worker"
 	"github.com/concourse/concourse/atc/worker/workerfakes"
+	"github.com/concourse/concourse/atc/worker/gclient/gclientfakes"
 	"github.com/cppforlife/go-semi-semantic/version"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -40,7 +40,7 @@ var _ = Describe("Worker", func() {
 		workerStartTime           int64
 		gardenWorker              Worker
 		workerVersion             string
-		fakeGardenClient          *gardenfakes.FakeClient
+		fakeGardenClient          *gclientfakes.FakeClient
 		fakeImageFactory          *workerfakes.FakeImageFactory
 		fakeImage                 *workerfakes.FakeImage
 		fakeDBWorker              *dbfakes.FakeWorker
@@ -49,7 +49,7 @@ var _ = Describe("Worker", func() {
 		fakeDBTeam                *dbfakes.FakeTeam
 		fakeCreatingContainer     *dbfakes.FakeCreatingContainer
 		fakeCreatedContainer      *dbfakes.FakeCreatedContainer
-		fakeGardenContainer       *gardenfakes.FakeContainer
+		fakeGardenContainer       *gclientfakes.FakeContainer
 		fakeImageFetchingDelegate *workerfakes.FakeImageFetchingDelegate
 		fakeBaggageclaimClient    *baggageclaimfakes.FakeClient
 
@@ -97,7 +97,7 @@ var _ = Describe("Worker", func() {
 		workerVersion = "1.2.3"
 		fakeDBWorker = new(dbfakes.FakeWorker)
 
-		fakeGardenClient = new(gardenfakes.FakeClient)
+		fakeGardenClient = new(gclientfakes.FakeClient)
 		fakeImageFactory = new(workerfakes.FakeImageFactory)
 		fakeImage = new(workerfakes.FakeImage)
 		fakeImageFactory.GetImageReturns(fakeImage, nil)
@@ -252,7 +252,7 @@ var _ = Describe("Worker", func() {
 			},
 		})
 
-		fakeGardenContainer = new(gardenfakes.FakeContainer)
+		fakeGardenContainer = new(gclientfakes.FakeContainer)
 		fakeGardenClient.CreateReturns(fakeGardenContainer, nil)
 	})
 
@@ -364,11 +364,11 @@ var _ = Describe("Worker", func() {
 		})
 		Context("when the gardenClient returns a container and no error", func() {
 			var (
-				fakeContainer *gardenfakes.FakeContainer
+				fakeContainer *gclientfakes.FakeContainer
 			)
 
 			BeforeEach(func() {
-				fakeContainer = new(gardenfakes.FakeContainer)
+				fakeContainer = new(gclientfakes.FakeContainer)
 				fakeContainer.HandleReturns("provider-handle")
 
 				fakeDBVolumeRepository.FindVolumesForContainerReturns([]db.CreatedVolume{}, nil)
@@ -385,12 +385,13 @@ var _ = Describe("Worker", func() {
 
 			Describe("the found container", func() {
 				It("can be destroyed", func() {
-					err := foundContainer.Destroy()
+					err := foundContainer.Destroy(context.TODO())
 					Expect(err).NotTo(HaveOccurred())
 
 					By("destroying via garden")
 					Expect(fakeGardenClient.DestroyCallCount()).To(Equal(1))
-					Expect(fakeGardenClient.DestroyArgsForCall(0)).To(Equal("provider-handle"))
+					_, actualHandle := fakeGardenClient.DestroyArgsForCall(0)
+					Expect(actualHandle).To(Equal("provider-handle"))
 				})
 			})
 
@@ -473,13 +474,13 @@ var _ = Describe("Worker", func() {
 				})
 
 				JustBeforeEach(func() {
-					foundContainer.Run(actualSpec, actualIO)
+					foundContainer.Run(context.TODO(), actualSpec, actualIO)
 				})
 
 				Describe("Run", func() {
 					It("calls Run() on the garden container and injects the user", func() {
 						Expect(fakeContainer.RunCallCount()).To(Equal(1))
-						spec, io := fakeContainer.RunArgsForCall(0)
+						_, spec, io := fakeContainer.RunArgsForCall(0)
 						Expect(spec).To(Equal(garden.ProcessSpec{
 							Path: "some-path",
 							Args: []string{"some", "args"},
@@ -512,13 +513,13 @@ var _ = Describe("Worker", func() {
 				})
 
 				JustBeforeEach(func() {
-					foundContainer.Run(actualSpec, actualIO)
+					foundContainer.Run(context.TODO(), actualSpec, actualIO)
 				})
 
 				Describe("Run", func() {
 					It("calls Run() on the garden container and injects the default user", func() {
 						Expect(fakeContainer.RunCallCount()).To(Equal(1))
-						spec, io := fakeContainer.RunArgsForCall(0)
+						_, spec, io := fakeContainer.RunArgsForCall(0)
 						Expect(spec).To(Equal(garden.ProcessSpec{
 							Path: "some-path",
 							Args: []string{"some", "args"},
@@ -998,7 +999,7 @@ var _ = Describe("Worker", func() {
 				It("creates the container in garden with the input and output volumes in alphabetical order", func() {
 					Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-					actualSpec := fakeGardenClient.CreateArgsForCall(0)
+					_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 					Expect(actualSpec).To(Equal(garden.ContainerSpec{
 						Handle:     "some-handle",
 						RootFSPath: "some-image-url",
@@ -1104,7 +1105,7 @@ var _ = Describe("Worker", func() {
 						It("creates the container with correct bind mounts", func() {
 							Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-							actualSpec := fakeGardenClient.CreateArgsForCall(0)
+							_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 							Expect(actualSpec).To(Equal(garden.ContainerSpec{
 								Handle:     "some-handle",
 								RootFSPath: "some-image-url",
@@ -1163,7 +1164,7 @@ var _ = Describe("Worker", func() {
 						It("creates the container with correct bind mounts", func() {
 							Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-							actualSpec := fakeGardenClient.CreateArgsForCall(0)
+							_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 							Expect(actualSpec).To(Equal(garden.ContainerSpec{
 								Handle:     "some-handle",
 								RootFSPath: "some-image-url",
@@ -1222,7 +1223,7 @@ var _ = Describe("Worker", func() {
 						It("creates the container with correct bind mounts", func() {
 							Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-							actualSpec := fakeGardenClient.CreateArgsForCall(0)
+							_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 							Expect(actualSpec).To(Equal(garden.ContainerSpec{
 								Handle:     "some-handle",
 								RootFSPath: "some-image-url",
@@ -1282,7 +1283,7 @@ var _ = Describe("Worker", func() {
 						It("creates the container with correct bind mounts", func() {
 							Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-							actualSpec := fakeGardenClient.CreateArgsForCall(0)
+							_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 							Expect(actualSpec).To(Equal(garden.ContainerSpec{
 								Handle:     "some-handle",
 								RootFSPath: "some-image-url",
@@ -1343,7 +1344,7 @@ var _ = Describe("Worker", func() {
 						It("creates the container with correct bind mounts", func() {
 							Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-							actualSpec := fakeGardenClient.CreateArgsForCall(0)
+							_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 							Expect(actualSpec).To(Equal(garden.ContainerSpec{
 								Handle:     "some-handle",
 								RootFSPath: "some-image-url",
@@ -1393,7 +1394,7 @@ var _ = Describe("Worker", func() {
 					})
 					It("creates the container in garden, but does not bind mount any certs", func() {
 						Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
-						actualSpec := fakeGardenClient.CreateArgsForCall(0)
+						_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 						Expect(actualSpec.BindMounts).ToNot(ContainElement(
 							garden.BindMount{
 								SrcPath: "/the/certs/volume/path",
@@ -1446,7 +1447,7 @@ var _ = Describe("Worker", func() {
 					It("creates the container privileged", func() {
 						Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-						actualSpec := fakeGardenClient.CreateArgsForCall(0)
+						_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 						Expect(actualSpec.Privileged).To(BeTrue())
 					})
 
@@ -1472,7 +1473,7 @@ var _ = Describe("Worker", func() {
 					It("does not create or mount a work-dir, as we support this for backwards-compatibility", func() {
 						Expect(fakeGardenClient.CreateCallCount()).To(Equal(1))
 
-						actualSpec := fakeGardenClient.CreateArgsForCall(0)
+						_, actualSpec := fakeGardenClient.CreateArgsForCall(0)
 						Expect(actualSpec.BindMounts).To(Equal([]garden.BindMount{
 							{
 								SrcPath: "some/source",

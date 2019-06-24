@@ -1,10 +1,12 @@
 package resource
 
 import (
+	"context"
 	"io"
 	"path"
 
 	"code.cloudfoundry.org/garden"
+	"github.com/concourse/concourse/atc/worker/gclient"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/worker"
 )
@@ -30,7 +32,7 @@ type versionResult struct {
 type putVersionedSource struct {
 	versionResult versionResult
 
-	container garden.Container
+	container gclient.Container
 
 	resourceDir string
 }
@@ -44,7 +46,7 @@ func (vs *putVersionedSource) Metadata() []atc.MetadataField {
 }
 
 func (vs *putVersionedSource) StreamOut(src string) (io.ReadCloser, error) {
-	return vs.container.StreamOut(garden.StreamOutSpec{
+	return vs.container.StreamOut(context.TODO(), garden.StreamOutSpec{
 		// don't use path.Join; it strips trailing slashes
 		Path: vs.resourceDir + "/" + src,
 	})
@@ -55,7 +57,7 @@ func (vs *putVersionedSource) Volume() worker.Volume {
 }
 
 func (vs *putVersionedSource) StreamIn(dst string, src io.Reader) error {
-	return vs.container.StreamIn(garden.StreamInSpec{
+	return vs.container.StreamIn(context.TODO(), garden.StreamInSpec{
 		Path:      path.Join(vs.resourceDir, dst),
 		TarStream: src,
 	})

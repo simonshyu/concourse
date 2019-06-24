@@ -75,19 +75,21 @@ func (resource *resource) runScript(
 	var process garden.Process
 
 	if recoverable {
-		process, err = resource.container.Attach(ResourceProcessID, processIO)
+		process, err = resource.container.Attach(ctx, ResourceProcessID, processIO)
 		if err != nil {
-			process, err = resource.container.Run(garden.ProcessSpec{
-				ID:   ResourceProcessID,
-				Path: path,
-				Args: args,
-			}, processIO)
+			process, err = resource.container.Run(
+				ctx,
+				garden.ProcessSpec{
+					ID:   ResourceProcessID,
+					Path: path,
+					Args: args,
+				}, processIO)
 			if err != nil {
 				return err
 			}
 		}
 	} else {
-		process, err = resource.container.Run(garden.ProcessSpec{
+		process, err = resource.container.Run(context.TODO(), garden.ProcessSpec{
 			Path: path,
 			Args: args,
 		}, processIO)
@@ -132,7 +134,7 @@ func (resource *resource) runScript(
 		return json.Unmarshal(stdout.Bytes(), output)
 
 	case <-ctx.Done():
-		resource.container.Stop(false)
+		resource.container.Stop(context.TODO(), false)
 		<-processExited
 		return ctx.Err()
 	}

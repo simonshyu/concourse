@@ -185,7 +185,7 @@ func (worker *gardenWorker) FindOrCreateContainer(
 ) (Container, error) {
 
 	var (
-		gardenContainer   garden.Container
+		gardenContainer   gclient.Container
 		createdContainer  db.CreatedContainer
 		creatingContainer db.CreatingContainer
 		containerHandle   string
@@ -280,7 +280,7 @@ func (worker *gardenWorker) FindOrCreateContainer(
 	if err != nil {
 		logger.Error("failed-to-mark-container-as-created", err)
 
-		_ = worker.gardenClient.Destroy(containerHandle)
+		_ = worker.gardenClient.Destroy(context.TODO(), containerHandle)
 
 		return nil, err
 	}
