@@ -181,10 +181,12 @@ func (r *resource) Reload() (bool, error) {
 	return true, nil
 }
 
-func (r *resource) ResourceTypes() (ResourceTypes, error) {
+func (r *resource) ResourceType(name string) (ResourceTypes, error) {
 	rows, err := resourceTypesQuery.
-		Where(sq.Eq{"r.pipeline_id": r.pipelineID}).
-		OrderBy("r.name").
+		Where(sq.Eq{
+			"r.pipeline_id": r.pipelineID,
+			"rt.name":       name,
+		}).
 		RunWith(r.conn).
 		Query()
 	if err != nil {

@@ -259,6 +259,36 @@ var _ = Describe("DelegateFactory", func() {
 		})
 	})
 
+	Describe("CheckDelegate", func() {
+		var (
+			delegate                exec.CheckDelegate
+			fakeResourceConfigScope *dbfakes.FakeResourceConfigScope
+			fakeCheck               *dbfakes.FakeCheck
+			versions                []atc.Version
+		)
+
+		BeforeEach(func() {
+			fakeCheck = new(dbfakes.FakeCheck)
+			fakeResourceConfigScope = new(dbfakes.FakeResourceConfigScope)
+
+			fakeCheck.ResourceConfigScopeReturns(fakeResourceConfigScope, nil)
+			delegate = builder.NewCheckDelegate(fakeCheck, "some-plan-id", fakeClock)
+			versions = []atc.Version{{"some": "version"}}
+		})
+
+		Describe("SaveVersions", func() {
+			JustBeforeEach(func() {
+				Expect(delegate.SaveVersions(versions)).To(Succeed())
+			})
+
+			It("saves an event", func() {
+				Expect(fakeResourceConfigScope.SaveVersionsCallCount()).To(Equal(1))
+				actualVersions := fakeResourceConfigScope.SaveVersionsArgsForCall(0)
+				Expect(actualVersions).To(Equal(versions))
+			})
+		})
+	})
+
 	Describe("BuildStepDelegate", func() {
 		var (
 			delegate exec.BuildStepDelegate

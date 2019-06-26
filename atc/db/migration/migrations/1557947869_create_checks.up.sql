@@ -6,6 +6,8 @@ BEGIN;
       create_time timestamp without time zone DEFAULT now() NOT NULL,
       start_time timestamp without time zone,
       end_time timestamp without time zone,
+      source text NOT NULL,
+      nonce text,
       from_version jsonb
   );
 

@@ -778,21 +778,28 @@ func (cmd *RunCommand) constructBackendMembers(
 	dbArtifactLifecycle := db.NewArtifactLifecycle(dbConn)
 	resourceConfigCheckSessionLifecycle := db.NewResourceConfigCheckSessionLifecycle(dbConn)
 	dbBuildFactory := db.NewBuildFactory(dbConn, lockFactory, cmd.GC.OneOffBuildGracePeriod)
+	dbCheckFactory := db.NewCheckFactory(dbConn, lockFactory)
 	dbPipelineFactory := db.NewPipelineFactory(dbConn, lockFactory)
 
 	bus := dbConn.Bus()
 
 	members := []grouper.Member{
 		{Name: "lidar", Runner: lidar.NewRunner(
-			lidar.New(
-				logger.Session("lidar"),
+			logger.Session("lidar"),
+			clock.NewClock(),
+			lidar.NewScanner(
+				logger.Session("lidar-scanner"),
 				dbPipelineFactory,
-				radarSchedulerFactory,
-				variablesFactory,
-				bus,
 			),
 			10*time.Second,
-			clock.NewClock(),
+			bus,
+			lidar.NewChecker(
+				logger.Session("lidar-checker"),
+				dbCheckFacotory,
+				engine,
+			),
+			10*time.Second,
+			bus,
 		)},
 		{Name: "pipelines", Runner: pipelines.SyncRunner{
 			Syncer: cmd.constructPipelineSyncer(
@@ -800,7 +807,6 @@ func (cmd *RunCommand) constructBackendMembers(
 				dbPipelineFactory,
 				radarSchedulerFactory,
 				secretManager,
-				bus,
 			),
 			Interval: 10 * time.Second,
 			Clock:    clock.NewClock(),
@@ -1411,7 +1417,6 @@ func (cmd *RunCommand) constructPipelineSyncer(
 	pipelineFactory db.PipelineFactory,
 	radarSchedulerFactory pipelines.RadarSchedulerFactory,
 	secretManager creds.Secrets,
-	bus db.NotificationsBus,
 ) *pipelines.Syncer {
 	return pipelines.NewSyncer(
 		logger,

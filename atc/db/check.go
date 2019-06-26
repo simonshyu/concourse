@@ -1,15 +1,19 @@
 package db
 
 import (
+	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db/lock"
+	"github.com/lib/pq"
 )
 
 type CheckStatus string
 
 const (
+	CheckStatusPending   CheckStatus = "pending"
 	CheckStatusStarted   CheckStatus = "started"
 	CheckStatusSucceeded CheckStatus = "succeeded"
 	CheckStatusErrored   CheckStatus = "errored"
@@ -21,8 +25,6 @@ type Check interface {
 	ID() int
 	ResourceConfigScope() (ResourceConfigScope, error)
 	Start() error
-	Timeout() time.Duration
-	FromVersion() atc.Version
 	Finish() error
 	FinishWithError(err error) error
 
@@ -36,50 +38,93 @@ const (
 	CheckTypeResourceType = "resource_type"
 )
 
-var checksQuery = psql.Select("r.id, r.resource_config_scope_id, r.start_time, r.end_time, r.timeout, r.from_version, r.check_error, r.create_time").
-	From("checks r")
+var checksQuery = psql.Select("c.id, c.resource_config_scope_id, c.status, c.schema, c.create_time, c.start_time, c.end_time, c.plan, c.nonce").
+	From("checks c")
 
 type check struct {
+	id                    int
+	resourceConfigScopeID int
+	status                CheckStatus
+
+	schema string
+	plan   atc.Plan
+
+	createTime time.Time
+	startTime  time.Time
+	endTime    time.Time
+
 	conn        Conn
 	lockFactory lock.LockFactory
 }
 
-func (r *check) ID() int                    { return 0 }
-func (r *check) ResourceConfigScopeID() int { return 0 }
-func (r *check) StartTime() time.Time       { return time.Now() }
-func (r *check) EndTime() time.Time         { return time.Now() }
-func (r *check) CreateTime() time.Time      { return time.Now() }
-func (r *check) Timeout() time.Duration     { return time.Second }
-func (r *check) FromVersion() atc.Version   { return nil }
+func (c *check) ID() int                    { return c.id }
+func (c *check) ResourceConfigScopeID() int { return c.resourceConfigScopeID }
+func (c *check) Status() CheckStatus        { return c.status }
+func (c *check) Schema() time.Time          { return c.endTime }
+func (c *check) Plan() atc.Plan             { return c.plan }
+func (c *check) CreateTime() time.Time      { return c.createTime }
+func (c *check) StartTime() time.Time       { return c.startTime }
+func (c *check) EndTime() time.Time         { return c.endTime }
 
-func (r *check) Start() error {
+func (c *check) Start() error {
 	return nil
 }
 
-func (r *check) Finish() error {
+func (c *check) Finish() error {
 	return nil
 }
 
-func (r *check) FinishWithError(err error) error {
+func (c *check) FinishWithError(err error) error {
 	return nil
 }
 
-func (r *check) ResourceConfigScope() (ResourceConfigScope, error) {
+func (c *check) ResourceConfigScope() (ResourceConfigScope, error) {
 	return nil, nil
 }
 
-func (r *check) IsRunning() bool {
+func (c *check) IsRunning() bool {
 	return false
 }
 
-func (r *check) Status() CheckStatus {
-	return CheckStatusErrored
-}
-
-func (r *check) AcquireTrackingLock() (lock.Lock, bool, error) {
+func (c *check) AcquireTrackingLock() (lock.Lock, bool, error) {
 	return nil, false, nil
 }
 
-func scanCheck(r *check, row scannable) error {
+func scanCheck(c *check, row scannable) error {
+	var (
+		resourceConfigScopeID          sql.NullInt64
+		createTime, startTime, endTime pq.NullTime
+		schema, plan, nonce            sql.NullString
+		status                         string
+	)
+
+	err := row.Scan(&c.id, &resourceConfigScopeID, &status, &schema, &createTime, &startTime, &endTime, &plan, &nonce)
+	if err != nil {
+		return err
+	}
+
+	var noncense *string
+	if nonce.Valid {
+		noncense = &nonce.String
+	}
+
+	es := c.conn.EncryptionStrategy()
+	decryptedConfig, err := es.Decrypt(string(plan.String), noncense)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(decryptedConfig, &c.plan)
+	if err != nil {
+		return err
+	}
+
+	c.status = CheckStatus(status)
+	c.schema = schema.String
+	c.resourceConfigScopeID = int(resourceConfigScopeID.Int64)
+	c.createTime = createTime.Time
+	c.startTime = startTime.Time
+	c.endTime = endTime.Time
+
 	return nil
 }
