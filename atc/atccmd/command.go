@@ -601,6 +601,7 @@ func (cmd *RunCommand) constructAPIMembers(
 		gcContainerDestroyer,
 		dbBuildFactory,
 		dbResourceConfigFactory,
+		userFactory,
 		workerClient,
 		radarScannerFactory,
 		secretManager,
@@ -1302,6 +1303,7 @@ func (cmd *RunCommand) constructAPIHandler(
 	gcContainerDestroyer gc.Destroyer,
 	dbBuildFactory db.BuildFactory,
 	resourceConfigFactory db.ResourceConfigFactory,
+	dbUserFactory db.UserFactory,
 	workerClient worker.Client,
 	radarScannerFactory radar.ScannerFactory,
 	secretManager creds.Secrets,
@@ -1354,6 +1356,7 @@ func (cmd *RunCommand) constructAPIHandler(
 		gcContainerDestroyer,
 		dbBuildFactory,
 		resourceConfigFactory,
+		dbUserFactory,
 
 		buildserver.NewEventHandler,
 
