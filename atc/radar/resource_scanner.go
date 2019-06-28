@@ -18,6 +18,7 @@ import (
 )
 
 var GlobalResourceCheckTimeout time.Duration
+const GARDEN_CLIENT_TIMEOUT = 10 * time.Minute
 
 type resourceScanner struct {
 	clock                 clock.Clock
@@ -337,8 +338,13 @@ func (scanner *resourceScanner) check(
 		}
 		return err
 	}
+
+	timeoutCtx, _ := context.WithTimeout(context.Background(), GARDEN_CLIENT_TIMEOUT)
+
+	fmt.Println("========= ABOUT TO SLEEP, KILL WORKER NOW ===========")
+	time.Sleep(1 * time.Minute)
 	container, err := chosenWorker.FindOrCreateContainer(
-		context.Background(),
+		timeoutCtx,
 		logger,
 		worker.NoopImageFetchingDelegate{},
 		owner,

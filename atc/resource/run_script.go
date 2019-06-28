@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"code.cloudfoundry.org/garden"
 )
@@ -13,6 +14,8 @@ import (
 const resourceResultPropertyName = "concourse:resource-result"
 
 const ResourceProcessID = "resource"
+
+const GARDEN_CLIENT_TIMEOUT = 10 * time.Minute
 
 type ErrResourceScriptFailed struct {
 	Path       string
@@ -89,7 +92,7 @@ func (resource *resource) runScript(
 			}
 		}
 	} else {
-		process, err = resource.container.Run(context.TODO(), garden.ProcessSpec{
+		process, err = resource.container.Run(ctx, garden.ProcessSpec{
 			Path: path,
 			Args: args,
 		}, processIO)
@@ -134,7 +137,7 @@ func (resource *resource) runScript(
 		return json.Unmarshal(stdout.Bytes(), output)
 
 	case <-ctx.Done():
-		resource.container.Stop(context.TODO(), false)
+		resource.container.Stop(ctx, false)
 		<-processExited
 		return ctx.Err()
 	}

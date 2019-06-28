@@ -29,7 +29,7 @@ func (conn *RetryableConnection) Run(ctx context.Context, handle string, process
 		Process: innerProcess,
 
 		rehydrate: func() (garden.Process, error) {
-			return conn.Connection.Attach(context.TODO(),handle, innerProcess.ID(), processIO)
+			return conn.Connection.Attach(ctx, handle, innerProcess.ID(), processIO)
 		},
 	}, nil
 }

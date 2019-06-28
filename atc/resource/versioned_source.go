@@ -46,6 +46,7 @@ func (vs *putVersionedSource) Metadata() []atc.MetadataField {
 }
 
 func (vs *putVersionedSource) StreamOut(src string) (io.ReadCloser, error) {
+	// to be fixed when we extend context.WithTimeout for baggage claim
 	return vs.container.StreamOut(context.TODO(), garden.StreamOutSpec{
 		// don't use path.Join; it strips trailing slashes
 		Path: vs.resourceDir + "/" + src,
@@ -57,6 +58,7 @@ func (vs *putVersionedSource) Volume() worker.Volume {
 }
 
 func (vs *putVersionedSource) StreamIn(dst string, src io.Reader) error {
+	// to be fixed when we extend context.WithTimeout for baggage claim
 	return vs.container.StreamIn(context.TODO(), garden.StreamInSpec{
 		Path:      path.Join(vs.resourceDir, dst),
 		TarStream: src,

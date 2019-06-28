@@ -259,7 +259,7 @@ func (worker *gardenWorker) FindOrCreateContainer(
 
 		logger.Debug("creating-garden-container")
 
-		gardenContainer, err = worker.helper.createGardenContainer(containerSpec, fetchedImage, creatingContainer.Handle(), bindMounts)
+		gardenContainer, err = worker.helper.createGardenContainer(ctx, containerSpec, fetchedImage, creatingContainer.Handle(), bindMounts)
 		if err != nil {
 			_, failedErr := creatingContainer.Failed()
 			if failedErr != nil {
@@ -280,7 +280,7 @@ func (worker *gardenWorker) FindOrCreateContainer(
 	if err != nil {
 		logger.Error("failed-to-mark-container-as-created", err)
 
-		_ = worker.gardenClient.Destroy(context.TODO(), containerHandle)
+		_ = worker.gardenClient.Destroy(ctx, containerHandle)
 
 		return nil, err
 	}

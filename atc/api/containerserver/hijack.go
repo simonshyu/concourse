@@ -16,6 +16,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const GARDEN_CLIENT_TIMEOUT = 10 * time.Minute
+
 var upgrader = websocket.Upgrader{
 	HandshakeTimeout: 5 * time.Second,
 }
@@ -214,7 +216,8 @@ func (s *Server) hijack(hLog lager.Logger, conn *websocket.Conn, request hijackR
 		}
 	}
 
-	process, err := request.Container.Run(context.TODO(), garden.ProcessSpec{
+	ctx, _ := context.WithTimeout(context.Background(), GARDEN_CLIENT_TIMEOUT)
+	process, err := request.Container.Run(ctx, garden.ProcessSpec{
 		Path: request.Process.Path,
 		Args: request.Process.Args,
 		Env:  request.Process.Env,

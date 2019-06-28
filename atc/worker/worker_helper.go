@@ -20,6 +20,7 @@ type workerHelper struct {
 }
 
 func (w workerHelper) createGardenContainer(
+	ctx context.Context,
 	containerSpec ContainerSpec,
 	fetchedImage FetchedImage,
 	handleToCreate string,
@@ -49,7 +50,7 @@ func (w workerHelper) createGardenContainer(
 	}
 
 	return w.gardenClient.Create(
-		context.TODO(),
+		ctx,
 		garden.ContainerSpec{
 		Handle:     handleToCreate,
 		RootFSPath: fetchedImage.URL,
