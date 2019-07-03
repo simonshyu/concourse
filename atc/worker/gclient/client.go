@@ -60,7 +60,7 @@ type Client interface {
 	//
 	// Errors:
 	// * Container not found.
-	Lookup(handle string) (Container, error)
+	Lookup(ctx context.Context, handle string) (Container, error)
 }
 
 type client struct {
@@ -91,7 +91,7 @@ func (client *client) Create(ctx context.Context, spec garden.ContainerSpec) (Co
 }
 
 func (client *client) Containers(properties garden.Properties) ([]Container, error) {
-	handles, err := client.connection.List(properties)
+	handles, err := client.connection.List(context.TODO(), properties)
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +118,8 @@ func (client *client) BulkMetrics(handles []string) (map[string]garden.Container
 	return client.connection.BulkMetrics(handles)
 }
 
-func (client *client) Lookup(handle string) (Container, error) {
-	handles, err := client.connection.List(nil)
+func (client *client) Lookup(ctx context.Context, handle string) (Container, error) {
+	handles, err := client.connection.List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

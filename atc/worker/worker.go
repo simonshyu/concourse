@@ -205,7 +205,7 @@ func (worker *gardenWorker) FindOrCreateContainer(
 		return nil, ResourceConfigCheckSessionExpiredError
 	}
 
-	gardenContainer, err = worker.gardenClient.Lookup(containerHandle)
+	gardenContainer, err = worker.gardenClient.Lookup(ctx, containerHandle)
 	if err != nil {
 		if _, ok := err.(garden.ContainerNotFoundError); !ok {
 			logger.Error("failed-to-lookup-creating-container-in-garden", err)
@@ -524,7 +524,8 @@ func (worker *gardenWorker) createVolumes(
 }
 
 func (worker *gardenWorker) FindContainerByHandle(logger lager.Logger, teamID int, handle string) (Container, bool, error) {
-	gardenContainer, err := worker.gardenClient.Lookup(handle)
+	// TODO: does this require a real context?
+	gardenContainer, err := worker.gardenClient.Lookup(context.TODO(), handle)
 	if err != nil {
 		if _, ok := err.(garden.ContainerNotFoundError); ok {
 			logger.Info("container-not-found")

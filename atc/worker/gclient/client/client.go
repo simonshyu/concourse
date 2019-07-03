@@ -40,7 +40,7 @@ func (client *client) Create(ctx context.Context, spec garden.ContainerSpec) (gc
 }
 
 func (client *client) Containers(properties garden.Properties) ([]gclient.Container, error) {
-	handles, err := client.connection.List(properties)
+	handles, err := client.connection.List(context.TODO(), properties)
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +67,8 @@ func (client *client) BulkMetrics(handles []string) (map[string]garden.Container
 	return client.connection.BulkMetrics(handles)
 }
 
-func (client *client) Lookup(handle string) (gclient.Container, error) {
-	handles, err := client.connection.List(nil)
+func (client *client) Lookup(ctx context.Context, handle string) (gclient.Container, error) {
+	handles, err := client.connection.List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -87,10 +87,11 @@ type FakeClient struct {
 	destroyReturnsOnCall map[int]struct {
 		result1 error
 	}
-	LookupStub        func(string) (gclient.Container, error)
+	LookupStub        func(context.Context, string) (gclient.Container, error)
 	lookupMutex       sync.RWMutex
 	lookupArgsForCall []struct {
-		arg1 string
+		arg1 context.Context
+		arg2 string
 	}
 	lookupReturns struct {
 		result1 gclient.Container
@@ -493,16 +494,17 @@ func (fake *FakeClient) DestroyReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeClient) Lookup(arg1 string) (gclient.Container, error) {
+func (fake *FakeClient) Lookup(arg1 context.Context, arg2 string) (gclient.Container, error) {
 	fake.lookupMutex.Lock()
 	ret, specificReturn := fake.lookupReturnsOnCall[len(fake.lookupArgsForCall)]
 	fake.lookupArgsForCall = append(fake.lookupArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	fake.recordInvocation("Lookup", []interface{}{arg1})
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	fake.recordInvocation("Lookup", []interface{}{arg1, arg2})
 	fake.lookupMutex.Unlock()
 	if fake.LookupStub != nil {
-		return fake.LookupStub(arg1)
+		return fake.LookupStub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -517,17 +519,17 @@ func (fake *FakeClient) LookupCallCount() int {
 	return len(fake.lookupArgsForCall)
 }
 
-func (fake *FakeClient) LookupCalls(stub func(string) (gclient.Container, error)) {
+func (fake *FakeClient) LookupCalls(stub func(context.Context, string) (gclient.Container, error)) {
 	fake.lookupMutex.Lock()
 	defer fake.lookupMutex.Unlock()
 	fake.LookupStub = stub
 }
 
-func (fake *FakeClient) LookupArgsForCall(i int) string {
+func (fake *FakeClient) LookupArgsForCall(i int) (context.Context, string) {
 	fake.lookupMutex.RLock()
 	defer fake.lookupMutex.RUnlock()
 	argsForCall := fake.lookupArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeClient) LookupReturns(result1 gclient.Container, result2 error) {

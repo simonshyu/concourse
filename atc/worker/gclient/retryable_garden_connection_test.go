@@ -1,6 +1,7 @@
-package worker_test
+package gclient_test
 
 import (
+	"github.com/concourse/concourse/atc/worker/gclient"
 	gconn "github.com/concourse/concourse/atc/worker/gclient/client/connection"
 	"context"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"code.cloudfoundry.org/garden"
 	"github.com/concourse/concourse/atc/worker/gclient/client/connection/connectionfakes"
 	"code.cloudfoundry.org/garden/gardenfakes"
-	"github.com/concourse/concourse/atc/worker"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -21,7 +21,7 @@ var _ = Describe("Retryable Garden Connection", func() {
 
 	BeforeEach(func() {
 		innerConnection = new(connectionfakes.FakeConnection)
-		conn = worker.NewRetryableConnection(innerConnection)
+		conn = gclient.NewRetryableConnection(innerConnection)
 	})
 
 	Describe("StreamIn", func() {

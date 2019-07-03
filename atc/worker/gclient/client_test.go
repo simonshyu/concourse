@@ -191,7 +191,8 @@ var _ = Describe("Client", func() {
 			containers, err := client.Containers(props)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeConnection.ListArgsForCall(0)).Should(Equal(props))
+			_, actualProps := fakeConnection.ListArgsForCall(0)
+			Ω(actualProps).Should(Equal(props))
 
 			Ω(containers).Should(HaveLen(2))
 			Ω(containers[0].Handle()).Should(Equal("handle-a"))
@@ -238,7 +239,7 @@ var _ = Describe("Client", func() {
 		It("sends a list request", func() {
 			fakeConnection.ListReturns([]string{"some-handle", "some-other-handle"}, nil)
 
-			container, err := client.Lookup("some-handle")
+			container, err := client.Lookup(testctx, "some-handle")
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(container.Handle()).Should(Equal("some-handle"))
@@ -250,7 +251,7 @@ var _ = Describe("Client", func() {
 			})
 
 			It("returns ContainerNotFoundError", func() {
-				_, err := client.Lookup("some-handle")
+				_, err := client.Lookup(testctx, "some-handle")
 				Ω(err).Should(MatchError(garden.ContainerNotFoundError{Handle: "some-handle"}))
 			})
 		})
@@ -263,7 +264,7 @@ var _ = Describe("Client", func() {
 			})
 
 			It("returns it", func() {
-				_, err := client.Lookup("some-handle")
+				_, err := client.Lookup(testctx, "some-handle")
 				Ω(err).Should(Equal(disaster))
 			})
 		})

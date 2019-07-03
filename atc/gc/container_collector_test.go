@@ -206,7 +206,7 @@ var _ = Describe("ContainerCollector", func() {
 
 					It("tells garden to set the TTL to 5 Min", func() {
 						Expect(fakeGardenClient.LookupCallCount()).To(Equal(1))
-						lookupHandle := fakeGardenClient.LookupArgsForCall(0)
+						_, lookupHandle := fakeGardenClient.LookupArgsForCall(0)
 						Expect(lookupHandle).To(Equal("some-handle-2"))
 
 						Expect(fakeGardenContainer.SetGraceTimeCallCount()).To(Equal(1))

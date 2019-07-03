@@ -169,10 +169,11 @@ type FakeConnection struct {
 		result1 garden.ContainerInfo
 		result2 error
 	}
-	ListStub        func(garden.Properties) ([]string, error)
+	ListStub        func(context.Context, garden.Properties) ([]string, error)
 	listMutex       sync.RWMutex
 	listArgsForCall []struct {
-		arg1 garden.Properties
+		arg1 context.Context
+		arg2 garden.Properties
 	}
 	listReturns struct {
 		result1 []string
@@ -1122,16 +1123,17 @@ func (fake *FakeConnection) InfoReturnsOnCall(i int, result1 garden.ContainerInf
 	}{result1, result2}
 }
 
-func (fake *FakeConnection) List(arg1 garden.Properties) ([]string, error) {
+func (fake *FakeConnection) List(arg1 context.Context, arg2 garden.Properties) ([]string, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 garden.Properties
-	}{arg1})
-	fake.recordInvocation("List", []interface{}{arg1})
+		arg1 context.Context
+		arg2 garden.Properties
+	}{arg1, arg2})
+	fake.recordInvocation("List", []interface{}{arg1, arg2})
 	fake.listMutex.Unlock()
 	if fake.ListStub != nil {
-		return fake.ListStub(arg1)
+		return fake.ListStub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -1146,17 +1148,17 @@ func (fake *FakeConnection) ListCallCount() int {
 	return len(fake.listArgsForCall)
 }
 
-func (fake *FakeConnection) ListCalls(stub func(garden.Properties) ([]string, error)) {
+func (fake *FakeConnection) ListCalls(stub func(context.Context, garden.Properties) ([]string, error)) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = stub
 }
 
-func (fake *FakeConnection) ListArgsForCall(i int) garden.Properties {
+func (fake *FakeConnection) ListArgsForCall(i int) (context.Context, garden.Properties) {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeConnection) ListReturns(result1 []string, result2 error) {

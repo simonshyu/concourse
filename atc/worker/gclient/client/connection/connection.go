@@ -30,7 +30,7 @@ type Connection interface {
 	Capacity() (garden.Capacity, error)
 
 	Create(ctx context.Context, spec garden.ContainerSpec) (string, error)
-	List(properties garden.Properties) ([]string, error)
+	List(ctx context.Context, properties garden.Properties) ([]string, error)
 
 	// Destroys the container with the given handle. If the container cannot be
 	// found, garden.ContainerNotFoundError is returned. If deletion fails for another
@@ -496,7 +496,7 @@ func (c *connection) StreamOut(ctx context.Context, handle string, spec garden.S
 	)
 }
 
-func (c *connection) List(filterProperties garden.Properties) ([]string, error) {
+func (c *connection) List(ctx context.Context, filterProperties garden.Properties) ([]string, error) {
 	values := url.Values{}
 	for name, val := range filterProperties {
 		values[name] = []string{val}
@@ -507,7 +507,7 @@ func (c *connection) List(filterProperties garden.Properties) ([]string, error) 
 	}{}
 
 	if err := c.do(
-		context.Background(),
+		ctx,
 		routes.List,
 		nil,
 		&res,

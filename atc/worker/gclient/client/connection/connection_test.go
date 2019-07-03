@@ -442,7 +442,7 @@ var _ = Describe("Connection", func() {
 		})
 
 		It("should return the list of containers", func() {
-			handles, err := connection.List(map[string]string{"foo": "bar"})
+			handles, err := connection.List(context.TODO(), map[string]string{"foo": "bar"})
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(handles).To(Equal([]string{"container1", "container2", "container3"}))
