@@ -294,12 +294,7 @@ type checkDelegate struct {
 }
 
 func (d *checkDelegate) SaveVersions(versions []atc.Version) error {
-	resourceConfigScope, err := d.check.ResourceConfigScope()
-	if err != nil {
-		return err
-	}
-
-	return resourceConfigScope.SaveVersions(versions)
+	return d.check.SaveVersions(versions)
 }
 
 func (*checkDelegate) Stdout() io.Writer                                 { return ioutil.Discard }

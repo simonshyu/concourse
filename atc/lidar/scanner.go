@@ -2,6 +2,8 @@ package lidar
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/concourse/concourse/atc"
@@ -12,26 +14,45 @@ import (
 func NewScanner(
 	logger lager.Logger,
 	checkFactory db.CheckFactory,
+	planFactory atc.PlanFactory,
 	secrets creds.Secrets,
+	defaultCheckTimeout time.Duration,
+	defaultCheckInterval time.Duration,
 ) *scanner {
 	return &scanner{
-		logger:       logger,
-		checkFactory: checkFactory,
-		secrets:      secrets,
+		logger:               logger,
+		checkFactory:         checkFactory,
+		planFactory:          planFactory,
+		secrets:              secrets,
+		defaultCheckTimeout:  defaultCheckTimeout,
+		defaultCheckInterval: defaultCheckInterval,
 	}
-
 }
 
 type scanner struct {
 	logger lager.Logger
 
-	checkFactory db.CheckFactory
-	secrets      creds.Secrets
+	checkFactory         db.CheckFactory
+	planFactory          atc.PlanFactory
+	secrets              creds.Secrets
+	defaultCheckTimeout  time.Duration
+	defaultCheckInterval time.Duration
 }
 
 func (s *scanner) Run(ctx context.Context) error {
 
-	// fetch all resources
+	lock, acquired, err := s.checkFactory.AcquireScanningLock(s.logger)
+	if err != nil {
+		s.logger.Error("failed-to-get-scanning-lock", err)
+		return err
+	}
+
+	if !acquired {
+		s.logger.Debug("scanning-already-in-progress")
+		return nil
+	}
+
+	defer lock.Release()
 
 	resources, err := s.checkFactory.Resources()
 	if err != nil {
@@ -39,46 +60,134 @@ func (s *scanner) Run(ctx context.Context) error {
 		return err
 	}
 
-	for _, resource := range resources {
+	resourceTypes, err := s.checkFactory.ResourceTypes()
+	if err != nil {
+		s.logger.Error("failed-to-get-resources", err)
+		return err
+	}
 
+	for _, resource := range resources {
 		variables := creds.NewVariables(s.secrets, resource.PipelineName(), resource.TeamName())
 
-		resourceTypes, err := s.dbPipeline.ResourceTypes()
-		if err != nil {
-			s.logger.Error("failed-to-get-resource-types", err)
-			return err
-		}
+		filteredTypes := db.ResourceTypes(resourceTypes).BuildTree(resource.Type())
 
-		source, err := creds.NewSource(variables, resource.Source()).Evaluate()
-		if err != nil {
-			s.logger.Error("failed-to-evaluate-source", err)
-			return err
-		}
-
-		versionedResourceTypes, err := creds.NewVersionedResourceTypes(variables, resourceTypes.Deserialize()).Evaluate()
-		if err != nil {
-			s.logger.Error("failed-to-evaluate-resource-types", err)
-			return err
-		}
-
-		// This could have changed based on new variable interpolation so update it
-		resourceConfigScope, err := resource.SetResourceConfig(source, versionedResourceTypes)
-		if err != nil {
-			s.logger.Error("failed-to-update-resource-config", err)
-			return err
-		}
-
-		var plan atc.Plan
-
-		// TODO construct a check plan
-
-		err = s.checkFactory.CreateCheck(resourceConfigScope.ID(), plan)
-		if err != nil {
+		if err = s.tryCreateCheck(resource, variables, filteredTypes); err != nil {
 			s.logger.Error("failed-to-create-check", err)
+		}
+	}
+
+	return nil
+}
+
+type Checkable interface {
+	Name() string
+	Type() string
+	PipelineID() int
+	Source() atc.Source
+	Tags() atc.Tags
+	CheckEvery() string
+	CheckTimeout() string
+	LastCheckEndTime() time.Time
+
+	SetResourceConfig(
+		atc.Source,
+		atc.VersionedResourceTypes,
+	) (db.ResourceConfigScope, error)
+}
+
+func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables, resourceTypes db.ResourceTypes) error {
+
+	var err error
+
+	parentType, found := s.parentType(checkable, resourceTypes)
+	if found {
+		if err := s.tryCreateCheck(parentType, variables, resourceTypes); err != nil {
 			return err
 		}
 
+		if parentType.Version() == nil {
+			return errors.New("parent type has no version")
+		}
 	}
-	return nil
 
+	timeout := s.defaultCheckTimeout
+	if to := checkable.CheckTimeout(); to != "" {
+		timeout, err = time.ParseDuration(to)
+		if err != nil {
+			return err
+		}
+	}
+
+	interval := s.defaultCheckInterval
+	if every := checkable.CheckEvery(); every != "" {
+		interval, err = time.ParseDuration(every)
+		if err != nil {
+			return err
+		}
+	}
+
+	if time.Now().Before(checkable.LastCheckEndTime().Add(interval)) {
+		return errors.New("within check interval")
+	}
+
+	source, err := creds.NewSource(variables, checkable.Source()).Evaluate()
+	if err != nil {
+		s.logger.Error("failed-to-evaluate-source", err)
+		return err
+	}
+
+	versionedResourceTypes, err := creds.NewVersionedResourceTypes(variables, resourceTypes.Deserialize()).Evaluate()
+	if err != nil {
+		s.logger.Error("failed-to-evaluate-resource-types", err)
+		return err
+	}
+
+	// This could have changed based on new variable interpolation so update it
+	resourceConfigScope, err := checkable.SetResourceConfig(source, versionedResourceTypes)
+	if err != nil {
+		s.logger.Error("failed-to-update-resource-config", err)
+		return err
+	}
+
+	var fromVersion atc.Version
+	rcv, found, err := resourceConfigScope.LatestVersion()
+	if err != nil {
+		s.logger.Error("failed-to-get-current-version", err)
+		return err
+	}
+
+	if found {
+		fromVersion = atc.Version(rcv.Version())
+	}
+
+	plan := s.planFactory.NewPlan(atc.CheckPlan{
+		Name:        checkable.Name(),
+		Type:        checkable.Type(),
+		Source:      source,
+		Tags:        checkable.Tags(),
+		Timeout:     timeout.String(),
+		FromVersion: &fromVersion,
+
+		VersionedResourceTypes: versionedResourceTypes,
+	})
+
+	resourceConfigScopeID := resourceConfigScope.ID()
+	baseResourceTypeID := resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID
+
+	_, err = s.checkFactory.CreateCheck(resourceConfigScopeID, baseResourceTypeID, plan)
+	if err != nil {
+		s.logger.Error("failed-to-create-check", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *scanner) parentType(checkable Checkable, resourceTypes []db.ResourceType) (db.ResourceType, bool) {
+	for _, resourceType := range resourceTypes {
+		if resourceType.Name() == checkable.Type() && resourceType.PipelineID() == checkable.PipelineID() {
+			return resourceType, true
+		}
+	}
+	return nil, false
 }

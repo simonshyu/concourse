@@ -63,9 +63,7 @@ func (step *CheckStep) Run(ctx context.Context, state RunState) error {
 		"step-name": step.plan.Name,
 	})
 
-	variables := creds.NewVariables(step.secrets, step.metadata.TeamName, step.metadata.PipelineName)
-
-	resourceTypes, err := creds.NewVersionedResourceTypes(variables, step.plan.VersionedResourceTypes).Evaluate()
+	resourceTypes := step.plan.VersionedResourceTypes
 
 	containerSpec := worker.ContainerSpec{
 		ImageSpec: worker.ImageSpec{

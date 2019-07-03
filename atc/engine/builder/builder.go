@@ -64,18 +64,18 @@ func (builder *stepBuilder) BuildStep(build db.Build) (exec.Step, error) {
 	return builder.buildStep(build, build.PrivatePlan()), nil
 }
 
-// func (builder *stepBuilder) CheckStep(check db.Check) (exec.Step, error) {
+func (builder *stepBuilder) CheckStep(check db.Check) (exec.Step, error) {
 
-// 	if check == nil {
-// 		return exec.IdentityStep{}, errors.New("Must provide a check")
-// 	}
+	if check == nil {
+		return exec.IdentityStep{}, errors.New("Must provide a check")
+	}
 
-// 	if check.Schema() != supportedSchema {
-// 		return exec.IdentityStep{}, errors.New("Schema not supported")
-// 	}
+	if check.Schema() != supportedSchema {
+		return exec.IdentityStep{}, errors.New("Schema not supported")
+	}
 
-// 	return builder.buildCheckStep(check, check.PrivatePlan()), nil
-// }
+	return builder.buildCheckStep(check, check.Plan()), nil
+}
 
 func (builder *stepBuilder) buildStep(build db.Build, plan atc.Plan) exec.Step {
 	if plan.Aggregate != nil {
@@ -302,11 +302,9 @@ func (builder *stepBuilder) buildCheckStep(check db.Check, plan atc.Plan) exec.S
 		Type: db.ContainerTypeCheck,
 	}
 
-	resourceConfigScope, _ := check.ResourceConfigScope()
-
 	stepMetadata := exec.StepMetadata{
-		ResourceConfigScopeID: resourceConfigScope.ID(),
-		BaseResourceTypeID:    resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID,
+		ResourceConfigScopeID: check.ResourceConfigScopeID(),
+		BaseResourceTypeID:    check.BaseResourceTypeID(),
 		ExternalURL:           builder.externalURL,
 	}
 

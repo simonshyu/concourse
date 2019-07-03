@@ -2,14 +2,11 @@ package lidar
 
 import (
 	"context"
-	"errors"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/concourse/concourse/atc/db"
 	"github.com/concourse/concourse/atc/engine"
 )
-
-var ErrFailedToAcquireLock = errors.New("failed to acquire lock")
 
 func NewChecker(
 	logger lager.Logger,
@@ -36,7 +33,7 @@ func (c *Checker) Run(ctx context.Context) error {
 	cLog.Debug("start")
 	defer cLog.Debug("done")
 
-	checks, err := c.checkFactory.Checks()
+	checks, err := c.checkFactory.PendingChecks()
 	if err != nil {
 		c.logger.Error("failed-to-fetch-resource-checks", err)
 		return err

@@ -567,16 +567,16 @@ func (cmd *RunCommand) constructAPIMembers(
 
 	checkContainerStrategy := worker.NewRandomPlacementStrategy()
 
-	radarScannerFactory := radar.NewScannerFactory(
-		pool,
-		resourceFactory,
-		dbResourceConfigFactory,
-		cmd.ResourceTypeCheckingInterval,
-		cmd.ResourceCheckingInterval,
-		cmd.ExternalURL.String(),
-		secretManager,
-		checkContainerStrategy,
-	)
+	// radarScannerFactory := radar.NewScannerFactory(
+	// 	pool,
+	// 	resourceFactory,
+	// 	dbResourceConfigFactory,
+	// 	cmd.ResourceTypeCheckingInterval,
+	// 	cmd.ResourceCheckingInterval,
+	// 	cmd.ExternalURL.String(),
+	// 	secretManager,
+	// 	checkContainerStrategy,
+	// )
 
 	credsManagers := cmd.CredentialManagers
 	dbPipelineFactory := db.NewPipelineFactory(dbConn, lockFactory)
@@ -601,7 +601,7 @@ func (cmd *RunCommand) constructAPIMembers(
 		dbBuildFactory,
 		dbResourceConfigFactory,
 		workerClient,
-		radarScannerFactory,
+		// radarScannerFactory,
 		secretManager,
 		credsManagers,
 		accessFactory,
@@ -789,13 +789,16 @@ func (cmd *RunCommand) constructBackendMembers(
 			clock.NewClock(),
 			lidar.NewScanner(
 				logger.Session("lidar-scanner"),
-				dbPipelineFactory,
+				dbCheckFactory,
+				atc.NewPlanFactory(time.Now().Unix()),
+				secretManager,
+				cmd.ResourceCheckingInterval,
+				cmd.GlobalResourceCheckTimeout,
 			),
 			10*time.Second,
-			bus,
 			lidar.NewChecker(
 				logger.Session("lidar-checker"),
-				dbCheckFacotory,
+				dbCheckFactory,
 				engine,
 			),
 			10*time.Second,
@@ -1321,7 +1324,7 @@ func (cmd *RunCommand) constructAPIHandler(
 	dbBuildFactory db.BuildFactory,
 	resourceConfigFactory db.ResourceConfigFactory,
 	workerClient worker.Client,
-	radarScannerFactory radar.ScannerFactory,
+	// radarScannerFactory radar.ScannerFactory,
 	secretManager creds.Secrets,
 	credsManagers creds.Managers,
 	accessFactory accessor.AccessFactory,
@@ -1376,7 +1379,7 @@ func (cmd *RunCommand) constructAPIHandler(
 		buildserver.NewEventHandler,
 
 		workerClient,
-		radarScannerFactory,
+		// radarScannerFactory,
 
 		reconfigurableSink,
 

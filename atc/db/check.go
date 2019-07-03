@@ -23,14 +23,22 @@ const (
 
 type Check interface {
 	ID() int
-	ResourceConfigScope() (ResourceConfigScope, error)
+	ResourceConfigScopeID() int
+	BaseResourceTypeID() int
+
 	Start() error
 	Finish() error
 	FinishWithError(err error) error
 
+	Schema() string
+	Plan() atc.Plan
+	CreateTime() time.Time
+	StartTime() time.Time
+	EndTime() time.Time
 	Status() CheckStatus
 	IsRunning() bool
 	AcquireTrackingLock() (lock.Lock, bool, error)
+	SaveVersions([]atc.Version) error
 }
 
 const (
@@ -38,14 +46,15 @@ const (
 	CheckTypeResourceType = "resource_type"
 )
 
-var checksQuery = psql.Select("c.id, c.resource_config_scope_id, c.status, c.schema, c.create_time, c.start_time, c.end_time, c.plan, c.nonce").
+var checksQuery = psql.Select("c.id, c.resource_config_scope_id, c.base_resource_type_id, c.status, c.schema, c.create_time, c.start_time, c.end_time, c.plan, c.nonce").
 	From("checks c")
 
 type check struct {
 	id                    int
 	resourceConfigScopeID int
-	status                CheckStatus
+	baseResourceTypeID    int
 
+	status CheckStatus
 	schema string
 	plan   atc.Plan
 
@@ -59,8 +68,9 @@ type check struct {
 
 func (c *check) ID() int                    { return c.id }
 func (c *check) ResourceConfigScopeID() int { return c.resourceConfigScopeID }
+func (c *check) BaseResourceTypeID() int    { return c.baseResourceTypeID }
 func (c *check) Status() CheckStatus        { return c.status }
-func (c *check) Schema() time.Time          { return c.endTime }
+func (c *check) Schema() string             { return c.schema }
 func (c *check) Plan() atc.Plan             { return c.plan }
 func (c *check) CreateTime() time.Time      { return c.createTime }
 func (c *check) StartTime() time.Time       { return c.startTime }
@@ -78,10 +88,6 @@ func (c *check) FinishWithError(err error) error {
 	return nil
 }
 
-func (c *check) ResourceConfigScope() (ResourceConfigScope, error) {
-	return nil, nil
-}
-
 func (c *check) IsRunning() bool {
 	return false
 }
@@ -90,15 +96,19 @@ func (c *check) AcquireTrackingLock() (lock.Lock, bool, error) {
 	return nil, false, nil
 }
 
+func (c *check) SaveVersions(versions []atc.Version) error {
+	return saveVersions(c.conn, c.resourceConfigScopeID, versions)
+}
+
 func scanCheck(c *check, row scannable) error {
 	var (
-		resourceConfigScopeID          sql.NullInt64
-		createTime, startTime, endTime pq.NullTime
-		schema, plan, nonce            sql.NullString
-		status                         string
+		resourceConfigScopeID, baseResourceTypeID sql.NullInt64
+		createTime, startTime, endTime            pq.NullTime
+		schema, plan, nonce                       sql.NullString
+		status                                    string
 	)
 
-	err := row.Scan(&c.id, &resourceConfigScopeID, &status, &schema, &createTime, &startTime, &endTime, &plan, &nonce)
+	err := row.Scan(&c.id, &resourceConfigScopeID, &baseResourceTypeID, &status, &schema, &createTime, &startTime, &endTime, &plan, &nonce)
 	if err != nil {
 		return err
 	}
@@ -122,6 +132,7 @@ func scanCheck(c *check, row scannable) error {
 	c.status = CheckStatus(status)
 	c.schema = schema.String
 	c.resourceConfigScopeID = int(resourceConfigScopeID.Int64)
+	c.baseResourceTypeID = int(baseResourceTypeID.Int64)
 	c.createTime = createTime.Time
 	c.startTime = startTime.Time
 	c.endTime = endTime.Time

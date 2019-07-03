@@ -3,6 +3,7 @@ package dbfakes
 
 import (
 	"sync"
+	"time"
 
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db"
@@ -39,6 +40,16 @@ type FakeResourceType struct {
 	checkSetupErrorReturnsOnCall map[int]struct {
 		result1 error
 	}
+	CheckTimeoutStub        func() string
+	checkTimeoutMutex       sync.RWMutex
+	checkTimeoutArgsForCall []struct {
+	}
+	checkTimeoutReturns struct {
+		result1 string
+	}
+	checkTimeoutReturnsOnCall map[int]struct {
+		result1 string
+	}
 	IDStub        func() int
 	iDMutex       sync.RWMutex
 	iDArgsForCall []struct {
@@ -48,6 +59,26 @@ type FakeResourceType struct {
 	}
 	iDReturnsOnCall map[int]struct {
 		result1 int
+	}
+	LastCheckEndTimeStub        func() time.Time
+	lastCheckEndTimeMutex       sync.RWMutex
+	lastCheckEndTimeArgsForCall []struct {
+	}
+	lastCheckEndTimeReturns struct {
+		result1 time.Time
+	}
+	lastCheckEndTimeReturnsOnCall map[int]struct {
+		result1 time.Time
+	}
+	LastCheckStartTimeStub        func() time.Time
+	lastCheckStartTimeMutex       sync.RWMutex
+	lastCheckStartTimeArgsForCall []struct {
+	}
+	lastCheckStartTimeReturns struct {
+		result1 time.Time
+	}
+	lastCheckStartTimeReturnsOnCall map[int]struct {
+		result1 time.Time
 	}
 	NameStub        func() string
 	nameMutex       sync.RWMutex
@@ -68,6 +99,16 @@ type FakeResourceType struct {
 	}
 	paramsReturnsOnCall map[int]struct {
 		result1 atc.Params
+	}
+	PipelineIDStub        func() int
+	pipelineIDMutex       sync.RWMutex
+	pipelineIDArgsForCall []struct {
+	}
+	pipelineIDReturns struct {
+		result1 int
+	}
+	pipelineIDReturnsOnCall map[int]struct {
+		result1 int
 	}
 	PrivilegedStub        func() bool
 	privilegedMutex       sync.RWMutex
@@ -326,6 +367,58 @@ func (fake *FakeResourceType) CheckSetupErrorReturnsOnCall(i int, result1 error)
 	}{result1}
 }
 
+func (fake *FakeResourceType) CheckTimeout() string {
+	fake.checkTimeoutMutex.Lock()
+	ret, specificReturn := fake.checkTimeoutReturnsOnCall[len(fake.checkTimeoutArgsForCall)]
+	fake.checkTimeoutArgsForCall = append(fake.checkTimeoutArgsForCall, struct {
+	}{})
+	fake.recordInvocation("CheckTimeout", []interface{}{})
+	fake.checkTimeoutMutex.Unlock()
+	if fake.CheckTimeoutStub != nil {
+		return fake.CheckTimeoutStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.checkTimeoutReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) CheckTimeoutCallCount() int {
+	fake.checkTimeoutMutex.RLock()
+	defer fake.checkTimeoutMutex.RUnlock()
+	return len(fake.checkTimeoutArgsForCall)
+}
+
+func (fake *FakeResourceType) CheckTimeoutCalls(stub func() string) {
+	fake.checkTimeoutMutex.Lock()
+	defer fake.checkTimeoutMutex.Unlock()
+	fake.CheckTimeoutStub = stub
+}
+
+func (fake *FakeResourceType) CheckTimeoutReturns(result1 string) {
+	fake.checkTimeoutMutex.Lock()
+	defer fake.checkTimeoutMutex.Unlock()
+	fake.CheckTimeoutStub = nil
+	fake.checkTimeoutReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeResourceType) CheckTimeoutReturnsOnCall(i int, result1 string) {
+	fake.checkTimeoutMutex.Lock()
+	defer fake.checkTimeoutMutex.Unlock()
+	fake.CheckTimeoutStub = nil
+	if fake.checkTimeoutReturnsOnCall == nil {
+		fake.checkTimeoutReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.checkTimeoutReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeResourceType) ID() int {
 	fake.iDMutex.Lock()
 	ret, specificReturn := fake.iDReturnsOnCall[len(fake.iDArgsForCall)]
@@ -375,6 +468,110 @@ func (fake *FakeResourceType) IDReturnsOnCall(i int, result1 int) {
 	}
 	fake.iDReturnsOnCall[i] = struct {
 		result1 int
+	}{result1}
+}
+
+func (fake *FakeResourceType) LastCheckEndTime() time.Time {
+	fake.lastCheckEndTimeMutex.Lock()
+	ret, specificReturn := fake.lastCheckEndTimeReturnsOnCall[len(fake.lastCheckEndTimeArgsForCall)]
+	fake.lastCheckEndTimeArgsForCall = append(fake.lastCheckEndTimeArgsForCall, struct {
+	}{})
+	fake.recordInvocation("LastCheckEndTime", []interface{}{})
+	fake.lastCheckEndTimeMutex.Unlock()
+	if fake.LastCheckEndTimeStub != nil {
+		return fake.LastCheckEndTimeStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.lastCheckEndTimeReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) LastCheckEndTimeCallCount() int {
+	fake.lastCheckEndTimeMutex.RLock()
+	defer fake.lastCheckEndTimeMutex.RUnlock()
+	return len(fake.lastCheckEndTimeArgsForCall)
+}
+
+func (fake *FakeResourceType) LastCheckEndTimeCalls(stub func() time.Time) {
+	fake.lastCheckEndTimeMutex.Lock()
+	defer fake.lastCheckEndTimeMutex.Unlock()
+	fake.LastCheckEndTimeStub = stub
+}
+
+func (fake *FakeResourceType) LastCheckEndTimeReturns(result1 time.Time) {
+	fake.lastCheckEndTimeMutex.Lock()
+	defer fake.lastCheckEndTimeMutex.Unlock()
+	fake.LastCheckEndTimeStub = nil
+	fake.lastCheckEndTimeReturns = struct {
+		result1 time.Time
+	}{result1}
+}
+
+func (fake *FakeResourceType) LastCheckEndTimeReturnsOnCall(i int, result1 time.Time) {
+	fake.lastCheckEndTimeMutex.Lock()
+	defer fake.lastCheckEndTimeMutex.Unlock()
+	fake.LastCheckEndTimeStub = nil
+	if fake.lastCheckEndTimeReturnsOnCall == nil {
+		fake.lastCheckEndTimeReturnsOnCall = make(map[int]struct {
+			result1 time.Time
+		})
+	}
+	fake.lastCheckEndTimeReturnsOnCall[i] = struct {
+		result1 time.Time
+	}{result1}
+}
+
+func (fake *FakeResourceType) LastCheckStartTime() time.Time {
+	fake.lastCheckStartTimeMutex.Lock()
+	ret, specificReturn := fake.lastCheckStartTimeReturnsOnCall[len(fake.lastCheckStartTimeArgsForCall)]
+	fake.lastCheckStartTimeArgsForCall = append(fake.lastCheckStartTimeArgsForCall, struct {
+	}{})
+	fake.recordInvocation("LastCheckStartTime", []interface{}{})
+	fake.lastCheckStartTimeMutex.Unlock()
+	if fake.LastCheckStartTimeStub != nil {
+		return fake.LastCheckStartTimeStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.lastCheckStartTimeReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) LastCheckStartTimeCallCount() int {
+	fake.lastCheckStartTimeMutex.RLock()
+	defer fake.lastCheckStartTimeMutex.RUnlock()
+	return len(fake.lastCheckStartTimeArgsForCall)
+}
+
+func (fake *FakeResourceType) LastCheckStartTimeCalls(stub func() time.Time) {
+	fake.lastCheckStartTimeMutex.Lock()
+	defer fake.lastCheckStartTimeMutex.Unlock()
+	fake.LastCheckStartTimeStub = stub
+}
+
+func (fake *FakeResourceType) LastCheckStartTimeReturns(result1 time.Time) {
+	fake.lastCheckStartTimeMutex.Lock()
+	defer fake.lastCheckStartTimeMutex.Unlock()
+	fake.LastCheckStartTimeStub = nil
+	fake.lastCheckStartTimeReturns = struct {
+		result1 time.Time
+	}{result1}
+}
+
+func (fake *FakeResourceType) LastCheckStartTimeReturnsOnCall(i int, result1 time.Time) {
+	fake.lastCheckStartTimeMutex.Lock()
+	defer fake.lastCheckStartTimeMutex.Unlock()
+	fake.LastCheckStartTimeStub = nil
+	if fake.lastCheckStartTimeReturnsOnCall == nil {
+		fake.lastCheckStartTimeReturnsOnCall = make(map[int]struct {
+			result1 time.Time
+		})
+	}
+	fake.lastCheckStartTimeReturnsOnCall[i] = struct {
+		result1 time.Time
 	}{result1}
 }
 
@@ -479,6 +676,58 @@ func (fake *FakeResourceType) ParamsReturnsOnCall(i int, result1 atc.Params) {
 	}
 	fake.paramsReturnsOnCall[i] = struct {
 		result1 atc.Params
+	}{result1}
+}
+
+func (fake *FakeResourceType) PipelineID() int {
+	fake.pipelineIDMutex.Lock()
+	ret, specificReturn := fake.pipelineIDReturnsOnCall[len(fake.pipelineIDArgsForCall)]
+	fake.pipelineIDArgsForCall = append(fake.pipelineIDArgsForCall, struct {
+	}{})
+	fake.recordInvocation("PipelineID", []interface{}{})
+	fake.pipelineIDMutex.Unlock()
+	if fake.PipelineIDStub != nil {
+		return fake.PipelineIDStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.pipelineIDReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) PipelineIDCallCount() int {
+	fake.pipelineIDMutex.RLock()
+	defer fake.pipelineIDMutex.RUnlock()
+	return len(fake.pipelineIDArgsForCall)
+}
+
+func (fake *FakeResourceType) PipelineIDCalls(stub func() int) {
+	fake.pipelineIDMutex.Lock()
+	defer fake.pipelineIDMutex.Unlock()
+	fake.PipelineIDStub = stub
+}
+
+func (fake *FakeResourceType) PipelineIDReturns(result1 int) {
+	fake.pipelineIDMutex.Lock()
+	defer fake.pipelineIDMutex.Unlock()
+	fake.PipelineIDStub = nil
+	fake.pipelineIDReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeResourceType) PipelineIDReturnsOnCall(i int, result1 int) {
+	fake.pipelineIDMutex.Lock()
+	defer fake.pipelineIDMutex.Unlock()
+	fake.PipelineIDStub = nil
+	if fake.pipelineIDReturnsOnCall == nil {
+		fake.pipelineIDReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.pipelineIDReturnsOnCall[i] = struct {
+		result1 int
 	}{result1}
 }
 
@@ -982,12 +1231,20 @@ func (fake *FakeResourceType) Invocations() map[string][][]interface{} {
 	defer fake.checkEveryMutex.RUnlock()
 	fake.checkSetupErrorMutex.RLock()
 	defer fake.checkSetupErrorMutex.RUnlock()
+	fake.checkTimeoutMutex.RLock()
+	defer fake.checkTimeoutMutex.RUnlock()
 	fake.iDMutex.RLock()
 	defer fake.iDMutex.RUnlock()
+	fake.lastCheckEndTimeMutex.RLock()
+	defer fake.lastCheckEndTimeMutex.RUnlock()
+	fake.lastCheckStartTimeMutex.RLock()
+	defer fake.lastCheckStartTimeMutex.RUnlock()
 	fake.nameMutex.RLock()
 	defer fake.nameMutex.RUnlock()
 	fake.paramsMutex.RLock()
 	defer fake.paramsMutex.RUnlock()
+	fake.pipelineIDMutex.RLock()
+	defer fake.pipelineIDMutex.RUnlock()
 	fake.privilegedMutex.RLock()
 	defer fake.privilegedMutex.RUnlock()
 	fake.reloadMutex.RLock()
