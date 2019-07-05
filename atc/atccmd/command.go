@@ -792,8 +792,8 @@ func (cmd *RunCommand) constructBackendMembers(
 				dbCheckFactory,
 				atc.NewPlanFactory(time.Now().Unix()),
 				secretManager,
-				cmd.ResourceCheckingInterval,
 				cmd.GlobalResourceCheckTimeout,
+				cmd.ResourceCheckingInterval,
 			),
 			10*time.Second,
 			lidar.NewChecker(

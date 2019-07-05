@@ -87,7 +87,7 @@ type Checkable interface {
 	Tags() atc.Tags
 	CheckEvery() string
 	CheckTimeout() string
-	LastCheckEndTime() time.Time
+	LastCheckStartTime() time.Time
 
 	SetResourceConfig(
 		atc.Source,
@@ -126,8 +126,22 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 		}
 	}
 
-	if time.Now().Before(checkable.LastCheckEndTime().Add(interval)) {
-		return errors.New("within check interval")
+	// TODO need to check last check start time so it knows if there
+	// is a check for current resource config scope already
+	// otherwise there will be duplicate checks created if a check takes
+	// longer than the check interval, since the end time is still not updated
+	// when a new round of scan happens
+
+	// TODO there is another case of duplicate checks created when one check
+	// is created by scanner, checker would wait at most 10sec to start it
+	// and update the start timestamp. While at the same time next scan is already
+	// kicked off, without any info (start or end time) available, scanner will
+	// create another check
+	if time.Now().Before(checkable.LastCheckStartTime().Add(interval)) {
+		s.logger.Debug("interval-not-reached", lager.Data{
+			"interval": interval,
+		})
+		return nil
 	}
 
 	source, err := creds.NewSource(variables, checkable.Source()).Evaluate()

@@ -7,7 +7,7 @@ BEGIN;
       base_resource_type_id integer REFERENCES base_resource_types(id) ON DELETE CASCADE,
       schema text NOT NULL,
       status text NOT NULL,
-      plan text NOT NULL,
+      plan text,
       nonce text,
       create_time timestamp WITH TIME ZONE DEFAULT now() NOT NULL,
       start_time timestamp WITH TIME ZONE,

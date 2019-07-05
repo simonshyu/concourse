@@ -81,6 +81,7 @@ func (c *check) CreateTime() time.Time      { return c.createTime }
 func (c *check) StartTime() time.Time       { return c.startTime }
 func (c *check) EndTime() time.Time         { return c.endTime }
 
+// TODO update resource config scope last check start time
 func (c *check) Start() error {
 	tx, err := c.conn.Begin()
 	if err != nil {
@@ -89,12 +90,25 @@ func (c *check) Start() error {
 
 	defer Rollback(tx)
 
+	now := time.Now()
 	_, err = psql.Update("checks").
 		Set("status", CheckStatusStarted).
-		Set("start_time", sq.Expr("now()")).
+		Set("start_time", now).
 		Where(sq.Eq{
 			"id":     c.id,
 			"status": "pending",
+		}).
+		RunWith(tx).
+		Exec()
+	if err != nil {
+		return err
+	}
+
+	// TODO update resource config scope
+	_, err = psql.Update("resource_config_scopes").
+		Set("last_check_start_time", now).
+		Where(sq.Eq{
+			"id": c.resourceConfigScopeID,
 		}).
 		RunWith(tx).
 		Exec()
@@ -118,12 +132,25 @@ func (c *check) Finish() error {
 
 	defer Rollback(tx)
 
+	now := time.Now()
 	_, err = psql.Update("checks").
 		Set("status", CheckStatusSucceeded).
-		Set("end_time", sq.Expr("now()")).
+		Set("end_time", now).
 		// Set("plan", nil).
 		// Set("nonce", nil).
 		Where(sq.Eq{"id": c.id}).
+		RunWith(tx).
+		Exec()
+	if err != nil {
+		return err
+	}
+
+	// TODO update resource config scope
+	_, err = psql.Update("resource_config_scopes").
+		Set("last_check_end_time", now).
+		Where(sq.Eq{
+			"id": c.resourceConfigScopeID,
+		}).
 		RunWith(tx).
 		Exec()
 	if err != nil {
