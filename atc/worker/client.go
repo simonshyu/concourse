@@ -166,9 +166,10 @@ func (client *client) RunTaskStep(
 			},
 			processIO,
 		)
-	}
-	if err != nil {
-		return -1, []VolumeMount{}, err
+
+		if err != nil {
+			return -1, []VolumeMount{}, err
+		}
 	}
 
 	logger.Info("attached")
