@@ -95,8 +95,6 @@ func (step *CheckStep) Run(ctx context.Context, state RunState) error {
 		expires,
 	)
 
-	fmt.Println("============================", owner)
-
 	chosenWorker, err := step.pool.FindOrChooseWorkerForContainer(
 		ctx,
 		logger,

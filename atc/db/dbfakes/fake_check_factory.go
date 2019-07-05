@@ -26,20 +26,23 @@ type FakeCheckFactory struct {
 		result2 bool
 		result3 error
 	}
-	CreateCheckStub        func(int, int, atc.Plan) (db.Check, error)
+	CreateCheckStub        func(int, int, int, atc.Plan) (db.Check, bool, error)
 	createCheckMutex       sync.RWMutex
 	createCheckArgsForCall []struct {
 		arg1 int
 		arg2 int
-		arg3 atc.Plan
+		arg3 int
+		arg4 atc.Plan
 	}
 	createCheckReturns struct {
 		result1 db.Check
-		result2 error
+		result2 bool
+		result3 error
 	}
 	createCheckReturnsOnCall map[int]struct {
 		result1 db.Check
-		result2 error
+		result2 bool
+		result3 error
 	}
 	PendingChecksStub        func() ([]db.Check, error)
 	pendingChecksMutex       sync.RWMutex
@@ -147,24 +150,25 @@ func (fake *FakeCheckFactory) AcquireScanningLockReturnsOnCall(i int, result1 lo
 	}{result1, result2, result3}
 }
 
-func (fake *FakeCheckFactory) CreateCheck(arg1 int, arg2 int, arg3 atc.Plan) (db.Check, error) {
+func (fake *FakeCheckFactory) CreateCheck(arg1 int, arg2 int, arg3 int, arg4 atc.Plan) (db.Check, bool, error) {
 	fake.createCheckMutex.Lock()
 	ret, specificReturn := fake.createCheckReturnsOnCall[len(fake.createCheckArgsForCall)]
 	fake.createCheckArgsForCall = append(fake.createCheckArgsForCall, struct {
 		arg1 int
 		arg2 int
-		arg3 atc.Plan
-	}{arg1, arg2, arg3})
-	fake.recordInvocation("CreateCheck", []interface{}{arg1, arg2, arg3})
+		arg3 int
+		arg4 atc.Plan
+	}{arg1, arg2, arg3, arg4})
+	fake.recordInvocation("CreateCheck", []interface{}{arg1, arg2, arg3, arg4})
 	fake.createCheckMutex.Unlock()
 	if fake.CreateCheckStub != nil {
-		return fake.CreateCheckStub(arg1, arg2, arg3)
+		return fake.CreateCheckStub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
-		return ret.result1, ret.result2
+		return ret.result1, ret.result2, ret.result3
 	}
 	fakeReturns := fake.createCheckReturns
-	return fakeReturns.result1, fakeReturns.result2
+	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3
 }
 
 func (fake *FakeCheckFactory) CreateCheckCallCount() int {
@@ -173,43 +177,46 @@ func (fake *FakeCheckFactory) CreateCheckCallCount() int {
 	return len(fake.createCheckArgsForCall)
 }
 
-func (fake *FakeCheckFactory) CreateCheckCalls(stub func(int, int, atc.Plan) (db.Check, error)) {
+func (fake *FakeCheckFactory) CreateCheckCalls(stub func(int, int, int, atc.Plan) (db.Check, bool, error)) {
 	fake.createCheckMutex.Lock()
 	defer fake.createCheckMutex.Unlock()
 	fake.CreateCheckStub = stub
 }
 
-func (fake *FakeCheckFactory) CreateCheckArgsForCall(i int) (int, int, atc.Plan) {
+func (fake *FakeCheckFactory) CreateCheckArgsForCall(i int) (int, int, int, atc.Plan) {
 	fake.createCheckMutex.RLock()
 	defer fake.createCheckMutex.RUnlock()
 	argsForCall := fake.createCheckArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
-func (fake *FakeCheckFactory) CreateCheckReturns(result1 db.Check, result2 error) {
+func (fake *FakeCheckFactory) CreateCheckReturns(result1 db.Check, result2 bool, result3 error) {
 	fake.createCheckMutex.Lock()
 	defer fake.createCheckMutex.Unlock()
 	fake.CreateCheckStub = nil
 	fake.createCheckReturns = struct {
 		result1 db.Check
-		result2 error
-	}{result1, result2}
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
 }
 
-func (fake *FakeCheckFactory) CreateCheckReturnsOnCall(i int, result1 db.Check, result2 error) {
+func (fake *FakeCheckFactory) CreateCheckReturnsOnCall(i int, result1 db.Check, result2 bool, result3 error) {
 	fake.createCheckMutex.Lock()
 	defer fake.createCheckMutex.Unlock()
 	fake.CreateCheckStub = nil
 	if fake.createCheckReturnsOnCall == nil {
 		fake.createCheckReturnsOnCall = make(map[int]struct {
 			result1 db.Check
-			result2 error
+			result2 bool
+			result3 error
 		})
 	}
 	fake.createCheckReturnsOnCall[i] = struct {
 		result1 db.Check
-		result2 error
-	}{result1, result2}
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
 }
 
 func (fake *FakeCheckFactory) PendingChecks() ([]db.Check, error) {

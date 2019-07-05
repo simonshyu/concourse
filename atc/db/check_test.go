@@ -10,9 +10,9 @@ import (
 var _ = Describe("Check", func() {
 	var (
 		err                 error
+		created             bool
 		check               db.Check
 		resourceConfigScope db.ResourceConfigScope
-		ubrt                *db.UsedBaseResourceType
 	)
 
 	BeforeEach(func() {
@@ -24,7 +24,7 @@ var _ = Describe("Check", func() {
 			Name: "some-base-resource-type",
 		}
 
-		ubrt, err = brt.FindOrCreate(setupTx, false)
+		_, err = brt.FindOrCreate(setupTx, false)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(setupTx.Commit()).To(Succeed())
 
@@ -34,15 +34,22 @@ var _ = Describe("Check", func() {
 	})
 
 	JustBeforeEach(func() {
-		check, err = checkFactory.CreateCheck(resourceConfigScope.ID(), ubrt.ID, atc.Plan{})
+		check, created, err = checkFactory.CreateCheck(
+			resourceConfigScope.ID(),
+			resourceConfigScope.ResourceConfig().ID(),
+			resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID,
+			atc.Plan{},
+		)
+		Expect(created).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Describe("ResourceConfigScopeID", func() {
-		Context("when looking up resource config scope succeeds", func() {
-			It("returns the resource", func() {
-				Expect(check).NotTo(BeNil())
-			})
+	Describe("Check", func() {
+		It("succeeds", func() {
+			Expect(check.Status()).To(Equal(db.CheckStatusPending))
+			Expect(check.ResourceConfigScopeID()).To(Equal(resourceConfigScope.ID()))
+			Expect(check.ResourceConfigID()).To(Equal(resourceConfigScope.ResourceConfig().ID()))
+			Expect(check.BaseResourceTypeID()).To(Equal(resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID))
 		})
 	})
 })

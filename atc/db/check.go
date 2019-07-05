@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/lager"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db/lock"
 	"github.com/lib/pq"
@@ -25,6 +26,7 @@ const (
 type Check interface {
 	ID() int
 	ResourceConfigScopeID() int
+	ResourceConfigID() int
 	BaseResourceTypeID() int
 	Schema() string
 	Plan() atc.Plan
@@ -47,12 +49,13 @@ const (
 	CheckTypeResourceType = "resource_type"
 )
 
-var checksQuery = psql.Select("c.id, c.resource_config_scope_id, c.base_resource_type_id, c.status, c.schema, c.create_time, c.start_time, c.end_time, c.plan, c.nonce").
+var checksQuery = psql.Select("c.id, c.resource_config_scope_id, c.resource_config_id, c.base_resource_type_id, c.status, c.schema, c.create_time, c.start_time, c.end_time, c.plan, c.nonce").
 	From("checks c")
 
 type check struct {
 	id                    int
 	resourceConfigScopeID int
+	resourceConfigID      int
 	baseResourceTypeID    int
 
 	status CheckStatus
@@ -69,6 +72,7 @@ type check struct {
 
 func (c *check) ID() int                    { return c.id }
 func (c *check) ResourceConfigScopeID() int { return c.resourceConfigScopeID }
+func (c *check) ResourceConfigID() int      { return c.resourceConfigID }
 func (c *check) BaseResourceTypeID() int    { return c.baseResourceTypeID }
 func (c *check) Status() CheckStatus        { return c.status }
 func (c *check) Schema() string             { return c.schema }
@@ -78,14 +82,87 @@ func (c *check) StartTime() time.Time       { return c.startTime }
 func (c *check) EndTime() time.Time         { return c.endTime }
 
 func (c *check) Start() error {
+	tx, err := c.conn.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer Rollback(tx)
+
+	_, err = psql.Update("checks").
+		Set("status", CheckStatusStarted).
+		Set("start_time", sq.Expr("now()")).
+		Where(sq.Eq{
+			"id":     c.id,
+			"status": "pending",
+		}).
+		RunWith(tx).
+		Exec()
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (c *check) Finish() error {
+	tx, err := c.conn.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer Rollback(tx)
+
+	_, err = psql.Update("checks").
+		Set("status", CheckStatusSucceeded).
+		Set("end_time", sq.Expr("now()")).
+		// Set("plan", nil).
+		// Set("nonce", nil).
+		Where(sq.Eq{"id": c.id}).
+		RunWith(tx).
+		Exec()
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (c *check) FinishWithError(err error) error {
+	tx, err := c.conn.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer Rollback(tx)
+
+	_, err = psql.Update("checks").
+		Set("status", CheckStatusErrored).
+		Set("end_time", sq.Expr("now()")).
+		Set("plan", nil).
+		Set("nonce", nil).
+		Where(sq.Eq{"id": c.id}).
+		RunWith(tx).
+		Exec()
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -106,13 +183,13 @@ func (c *check) SaveVersions(versions []atc.Version) error {
 
 func scanCheck(c *check, row scannable) error {
 	var (
-		resourceConfigScopeID, baseResourceTypeID sql.NullInt64
-		createTime, startTime, endTime            pq.NullTime
-		schema, plan, nonce                       sql.NullString
-		status                                    string
+		resourceConfigScopeID, resourceConfigID, baseResourceTypeID sql.NullInt64
+		createTime, startTime, endTime                              pq.NullTime
+		schema, plan, nonce                                         sql.NullString
+		status                                                      string
 	)
 
-	err := row.Scan(&c.id, &resourceConfigScopeID, &baseResourceTypeID, &status, &schema, &createTime, &startTime, &endTime, &plan, &nonce)
+	err := row.Scan(&c.id, &resourceConfigScopeID, &resourceConfigID, &baseResourceTypeID, &status, &schema, &createTime, &startTime, &endTime, &plan, &nonce)
 	if err != nil {
 		return err
 	}
@@ -136,6 +213,7 @@ func scanCheck(c *check, row scannable) error {
 	c.status = CheckStatus(status)
 	c.schema = schema.String
 	c.resourceConfigScopeID = int(resourceConfigScopeID.Int64)
+	c.resourceConfigID = int(resourceConfigID.Int64)
 	c.baseResourceTypeID = int(baseResourceTypeID.Int64)
 	c.createTime = createTime.Time
 	c.startTime = startTime.Time

@@ -14,7 +14,6 @@ var _ = Describe("CheckFactory", func() {
 	var (
 		err                 error
 		resourceConfigScope db.ResourceConfigScope
-		ubrt                *db.UsedBaseResourceType
 	)
 
 	BeforeEach(func() {
@@ -25,7 +24,7 @@ var _ = Describe("CheckFactory", func() {
 			Name: "some-base-resource-type",
 		}
 
-		ubrt, err = brt.FindOrCreate(setupTx, false)
+		_, err = brt.FindOrCreate(setupTx, false)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(setupTx.Commit()).To(Succeed())
 
@@ -34,18 +33,20 @@ var _ = Describe("CheckFactory", func() {
 	})
 
 	Describe("CreateCheck", func() {
+		var created bool
 		var check db.Check
 
 		JustBeforeEach(func() {
-			check, err = checkFactory.CreateCheck(resourceConfigScope.ID(), ubrt.ID, atc.Plan{
-				Check: &atc.CheckPlan{
-					Name: "some-name",
-					Type: "some-type",
-				},
-			})
+			check, created, err = checkFactory.CreateCheck(
+				resourceConfigScope.ID(),
+				resourceConfigScope.ResourceConfig().ID(),
+				resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID,
+				atc.Plan{Check: &atc.CheckPlan{Name: "some-name", Type: "some-type"}},
+			)
 		})
 
 		It("succeeds", func() {
+			Expect(created).To(BeTrue())
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -61,36 +62,60 @@ var _ = Describe("CheckFactory", func() {
 
 		Context("when a check is already pending", func() {
 			BeforeEach(func() {
-				_, err = checkFactory.CreateCheck(resourceConfigScope.ID(), ubrt.ID, atc.Plan{})
+				_, created, err := checkFactory.CreateCheck(
+					resourceConfigScope.ID(),
+					resourceConfigScope.ResourceConfig().ID(),
+					resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID,
+					atc.Plan{},
+				)
+				Expect(created).To(BeTrue())
 				Expect(err).NotTo(HaveOccurred())
 			})
 
-			It("doesn't create a check if one is pending", func() {
-				Expect(err).To(HaveOccurred())
+			It("doesn't create a check", func() {
+				Expect(created).To(BeFalse())
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})
 
-	Describe("Checks", func() {
-		Context("when looking up the resource check succeeds", func() {
-			var (
-				check  db.Check
-				checks []db.Check
-			)
+	Describe("PendingChecks", func() {
+		var (
+			checks []db.Check
+		)
 
+		JustBeforeEach(func() {
+			checks, err = checkFactory.PendingChecks()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		Context("when looking up the resource check returns no results", func() {
 			BeforeEach(func() {
-				check, err = checkFactory.CreateCheck(resourceConfigScope.ID(), ubrt.ID, atc.Plan{})
+				_, err = dbConn.Exec(`DELETE FROM checks`)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(check.ID()).To(Equal(resourceConfigScope.ID()))
 			})
 
-			JustBeforeEach(func() {
-				checks, err = checkFactory.PendingChecks()
+			It("is not found", func() {
+				Expect(checks).To(HaveLen(0))
+			})
+		})
+
+		Context("when looking up the resource check succeeds", func() {
+			var check db.Check
+
+			BeforeEach(func() {
+				var created bool
+				check, created, err = checkFactory.CreateCheck(
+					resourceConfigScope.ID(),
+					resourceConfigScope.ResourceConfig().ID(),
+					resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID,
+					atc.Plan{},
+				)
+				Expect(created).To(BeTrue())
 				Expect(err).NotTo(HaveOccurred())
 			})
 
 			It("returns the resource checks", func() {
-				Expect(err).NotTo(HaveOccurred())
 				Expect(checks).To(HaveLen(1))
 				Expect(checks[0]).To(Equal(check))
 			})
@@ -98,14 +123,16 @@ var _ = Describe("CheckFactory", func() {
 	})
 
 	Describe("Resources", func() {
-		var resources []db.Resource
+		var (
+			resources []db.Resource
+		)
 
 		JustBeforeEach(func() {
 			resources, err = checkFactory.Resources()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("include both resources in return", func() {
+		It("include resources in return", func() {
 			Expect(resources).To(HaveLen(1))
 			Expect(resources[0].Name()).To(Equal("some-resource"))
 		})
@@ -134,7 +161,9 @@ var _ = Describe("CheckFactory", func() {
 	})
 
 	Describe("ResourceTypes", func() {
-		var resourceTypes db.ResourceTypes
+		var (
+			resourceTypes db.ResourceTypes
+		)
 
 		JustBeforeEach(func() {
 			resourceTypes, err = checkFactory.ResourceTypes()

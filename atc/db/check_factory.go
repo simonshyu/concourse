@@ -1,8 +1,8 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"code.cloudfoundry.org/lager"
@@ -15,7 +15,7 @@ import (
 
 type CheckFactory interface {
 	PendingChecks() ([]Check, error)
-	CreateCheck(int, int, atc.Plan) (Check, error)
+	CreateCheck(int, int, int, atc.Plan) (Check, bool, error)
 	Resources() ([]Resource, error)
 	ResourceTypes() ([]ResourceType, error)
 	AcquireScanningLock(lager.Logger) (lock.Lock, bool, error)
@@ -50,7 +50,7 @@ func (c *checkFactory) PendingChecks() ([]Check, error) {
 		Where(sq.Eq{
 			"status": CheckStatusPending,
 		}).
-		OrderBy("c.id ASC").
+		OrderBy("c.id").
 		RunWith(c.conn).
 		Query()
 	if err != nil {
@@ -60,7 +60,6 @@ func (c *checkFactory) PendingChecks() ([]Check, error) {
 	var checks []Check
 
 	for rows.Next() {
-		fmt.Println("row")
 		check := &check{conn: c.conn, lockFactory: c.lockFactory}
 
 		err := scanCheck(check, rows)
@@ -74,23 +73,23 @@ func (c *checkFactory) PendingChecks() ([]Check, error) {
 	return checks, nil
 }
 
-func (c *checkFactory) CreateCheck(resourceConfigScopeID int, baseResourceTypeID int, plan atc.Plan) (Check, error) {
+func (c *checkFactory) CreateCheck(resourceConfigScopeID int, resourceConfigID int, baseResourceTypeID int, plan atc.Plan) (Check, bool, error) {
 	tx, err := c.conn.Begin()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	defer Rollback(tx)
 
 	planPayload, err := json.Marshal(plan)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	es := c.conn.EncryptionStrategy()
 	encryptedPayload, nonce, err := es.Encrypt(planPayload)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var id int
@@ -98,6 +97,7 @@ func (c *checkFactory) CreateCheck(resourceConfigScopeID int, baseResourceTypeID
 	err = psql.Insert("checks").
 		Columns(
 			"resource_config_scope_id",
+			"resource_config_id",
 			"base_resource_type_id",
 			"schema",
 			"status",
@@ -106,6 +106,7 @@ func (c *checkFactory) CreateCheck(resourceConfigScopeID int, baseResourceTypeID
 		).
 		Values(
 			resourceConfigScopeID,
+			resourceConfigID,
 			baseResourceTypeID,
 			schema,
 			CheckStatusPending,
@@ -120,17 +121,21 @@ func (c *checkFactory) CreateCheck(resourceConfigScopeID int, baseResourceTypeID
 		QueryRow().
 		Scan(&id, &createTime)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	return &check{
 		id:                    id,
 		resourceConfigScopeID: resourceConfigScopeID,
+		resourceConfigID:      resourceConfigID,
 		baseResourceTypeID:    baseResourceTypeID,
 		schema:                schema,
 		status:                CheckStatusPending,
@@ -139,7 +144,7 @@ func (c *checkFactory) CreateCheck(resourceConfigScopeID int, baseResourceTypeID
 
 		conn:        c.conn,
 		lockFactory: c.lockFactory,
-	}, err
+	}, true, err
 }
 
 func (c *checkFactory) Resources() ([]Resource, error) {
@@ -149,6 +154,10 @@ func (c *checkFactory) Resources() ([]Resource, error) {
 		Where(sq.Eq{"p.paused": false}).
 		RunWith(c.conn).
 		Query()
+
+	if err != nil {
+		return nil, err
+	}
 
 	defer Close(rows)
 
@@ -175,6 +184,10 @@ func (c *checkFactory) ResourceTypes() ([]ResourceType, error) {
 	rows, err := resourceTypesQuery.
 		RunWith(c.conn).
 		Query()
+
+	if err != nil {
+		return nil, err
+	}
 
 	defer Close(rows)
 

@@ -149,7 +149,7 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 		return err
 	}
 
-	var fromVersion atc.Version
+	fromVersion := make(atc.Version)
 	rcv, found, err := resourceConfigScope.LatestVersion()
 	if err != nil {
 		s.logger.Error("failed-to-get-current-version", err)
@@ -172,12 +172,17 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 	})
 
 	resourceConfigScopeID := resourceConfigScope.ID()
+	resourceConfigID := resourceConfigScope.ResourceConfig().ID()
 	baseResourceTypeID := resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID
 
-	_, err = s.checkFactory.CreateCheck(resourceConfigScopeID, baseResourceTypeID, plan)
+	_, created, err := s.checkFactory.CreateCheck(resourceConfigScopeID, resourceConfigID, baseResourceTypeID, plan)
 	if err != nil {
 		s.logger.Error("failed-to-create-check", err)
 		return err
+	}
+
+	if !created {
+		s.logger.Info("check-already-exists")
 	}
 
 	return nil

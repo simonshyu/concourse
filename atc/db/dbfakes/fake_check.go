@@ -108,6 +108,16 @@ type FakeCheck struct {
 	planReturnsOnCall map[int]struct {
 		result1 atc.Plan
 	}
+	ResourceConfigIDStub        func() int
+	resourceConfigIDMutex       sync.RWMutex
+	resourceConfigIDArgsForCall []struct {
+	}
+	resourceConfigIDReturns struct {
+		result1 int
+	}
+	resourceConfigIDReturnsOnCall map[int]struct {
+		result1 int
+	}
 	ResourceConfigScopeIDStub        func() int
 	resourceConfigScopeIDMutex       sync.RWMutex
 	resourceConfigScopeIDArgsForCall []struct {
@@ -663,6 +673,58 @@ func (fake *FakeCheck) PlanReturnsOnCall(i int, result1 atc.Plan) {
 	}{result1}
 }
 
+func (fake *FakeCheck) ResourceConfigID() int {
+	fake.resourceConfigIDMutex.Lock()
+	ret, specificReturn := fake.resourceConfigIDReturnsOnCall[len(fake.resourceConfigIDArgsForCall)]
+	fake.resourceConfigIDArgsForCall = append(fake.resourceConfigIDArgsForCall, struct {
+	}{})
+	fake.recordInvocation("ResourceConfigID", []interface{}{})
+	fake.resourceConfigIDMutex.Unlock()
+	if fake.ResourceConfigIDStub != nil {
+		return fake.ResourceConfigIDStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.resourceConfigIDReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeCheck) ResourceConfigIDCallCount() int {
+	fake.resourceConfigIDMutex.RLock()
+	defer fake.resourceConfigIDMutex.RUnlock()
+	return len(fake.resourceConfigIDArgsForCall)
+}
+
+func (fake *FakeCheck) ResourceConfigIDCalls(stub func() int) {
+	fake.resourceConfigIDMutex.Lock()
+	defer fake.resourceConfigIDMutex.Unlock()
+	fake.ResourceConfigIDStub = stub
+}
+
+func (fake *FakeCheck) ResourceConfigIDReturns(result1 int) {
+	fake.resourceConfigIDMutex.Lock()
+	defer fake.resourceConfigIDMutex.Unlock()
+	fake.ResourceConfigIDStub = nil
+	fake.resourceConfigIDReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeCheck) ResourceConfigIDReturnsOnCall(i int, result1 int) {
+	fake.resourceConfigIDMutex.Lock()
+	defer fake.resourceConfigIDMutex.Unlock()
+	fake.ResourceConfigIDStub = nil
+	if fake.resourceConfigIDReturnsOnCall == nil {
+		fake.resourceConfigIDReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.resourceConfigIDReturnsOnCall[i] = struct {
+		result1 int
+	}{result1}
+}
+
 func (fake *FakeCheck) ResourceConfigScopeID() int {
 	fake.resourceConfigScopeIDMutex.Lock()
 	ret, specificReturn := fake.resourceConfigScopeIDReturnsOnCall[len(fake.resourceConfigScopeIDArgsForCall)]
@@ -1009,6 +1071,8 @@ func (fake *FakeCheck) Invocations() map[string][][]interface{} {
 	defer fake.isRunningMutex.RUnlock()
 	fake.planMutex.RLock()
 	defer fake.planMutex.RUnlock()
+	fake.resourceConfigIDMutex.RLock()
+	defer fake.resourceConfigIDMutex.RUnlock()
 	fake.resourceConfigScopeIDMutex.RLock()
 	defer fake.resourceConfigScopeIDMutex.RUnlock()
 	fake.saveVersionsMutex.RLock()
