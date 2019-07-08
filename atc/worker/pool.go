@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"time"
 
@@ -18,28 +17,6 @@ import (
 
 //go:generate counterfeiter . WorkerProvider
 
-const taskProcessID = "task"
-const taskExitStatusPropertyName = "concourse:exit-status"
-
-type ReturnValue struct {
-	Status       int
-	VolumeMounts []VolumeMount
-	Err          error
-}
-
-type TaskProcessSpec struct {
-	Path         string
-	Args         []string
-	Dir          string
-	User         string
-	StdoutWriter io.Writer
-	StderrWriter io.Writer
-}
-
-type ImageFetcherSpec struct {
-	ResourceTypes atc.VersionedResourceTypes
-	Delegate      ImageFetchingDelegate
-}
 
 type WorkerProvider interface {
 	RunningWorkers(lager.Logger) ([]Worker, error)

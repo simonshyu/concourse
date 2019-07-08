@@ -20,7 +20,6 @@ import (
 	"github.com/concourse/concourse/atc/worker"
 )
 
-
 // MissingInputsError is returned when any of the task's required inputs are
 // missing.
 type MissingInputsError struct {
@@ -186,24 +185,23 @@ func (step *TaskStep) Run(ctx context.Context, state RunState) error {
 	}
 
 	processSpec := worker.TaskProcessSpec{
-		Path: config.Run.Path,
-		Args: config.Run.Args,
-		Dir: config.Run.Dir,
-		User: config.Run.User,
+		Path:         config.Run.Path,
+		Args:         config.Run.Args,
+		Dir:          config.Run.Dir,
 		StdoutWriter: step.delegate.Stdout(),
 		StderrWriter: step.delegate.Stderr(),
 	}
 
 	imageSpec := worker.ImageFetcherSpec{
 		ResourceTypes: resourceTypes,
-		Delegate: step.delegate,
+		Delegate:      step.delegate,
 	}
 	owner := db.NewBuildStepContainerOwner(step.metadata.BuildID, step.planID, step.metadata.TeamID)
 
-	results := make(chan worker.ReturnValue)
+	results := make(chan worker.TaskResult)
 	events := make(chan string, 1)
 
-	go func(results chan worker.ReturnValue) {
+	go func(results chan worker.TaskResult) {
 		status, volumeMounts, err := step.workerClient.RunTaskStep(
 			ctx,
 			logger,
@@ -217,14 +215,13 @@ func (step *TaskStep) Run(ctx context.Context, state RunState) error {
 			events,
 		)
 
-		results <- worker.ReturnValue{
-			Status: status,
+		results <- worker.TaskResult{
+			Status:       status,
 			VolumeMounts: volumeMounts,
-			Err: err,
+			Err:          err,
 		}
 
 	}(results)
-
 
 	for {
 		select {

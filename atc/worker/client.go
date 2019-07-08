@@ -5,10 +5,15 @@ import (
 	"code.cloudfoundry.org/lager"
 	"context"
 	"fmt"
+	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/db"
+	"io"
 	"path"
 	"strconv"
 )
+
+const taskProcessID = "task"
+const taskExitStatusPropertyName = "concourse:exit-status"
 
 //go:generate counterfeiter . Client
 
@@ -40,6 +45,27 @@ func NewClient(pool Pool, provider WorkerProvider) *client {
 type client struct {
 	pool     Pool
 	provider WorkerProvider
+}
+
+
+type TaskResult struct {
+	Status       int
+	VolumeMounts []VolumeMount
+	Err          error
+}
+
+type TaskProcessSpec struct {
+	Path         string
+	Args         []string
+	Dir          string
+	User         string
+	StdoutWriter io.Writer
+	StderrWriter io.Writer
+}
+
+type ImageFetcherSpec struct {
+	ResourceTypes atc.VersionedResourceTypes
+	Delegate      ImageFetchingDelegate
 }
 
 func (client *client) FindContainer(logger lager.Logger, teamID int, handle string) (Container, bool, error) {

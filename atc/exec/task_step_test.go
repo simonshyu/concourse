@@ -11,6 +11,10 @@ import (
 	"code.cloudfoundry.org/lager"
 	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/DataDog/zstd"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/creds/credsfakes"
 	"github.com/concourse/concourse/atc/db"
@@ -19,9 +23,6 @@ import (
 	"github.com/concourse/concourse/atc/exec/execfakes"
 	"github.com/concourse/concourse/atc/worker"
 	"github.com/concourse/concourse/atc/worker/workerfakes"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("TaskStep", func() {
@@ -34,7 +35,6 @@ var _ = Describe("TaskStep", func() {
 		stderrBuf *gbytes.Buffer
 
 		fakeClient   *workerfakes.FakeClient
-		fakeWorker   *workerfakes.FakeWorker
 		fakeStrategy *workerfakes.FakeContainerPlacementStrategy
 
 		fakeSecretManager *credsfakes.FakeSecrets
@@ -71,7 +71,6 @@ var _ = Describe("TaskStep", func() {
 		stdoutBuf = gbytes.NewBuffer()
 		stderrBuf = gbytes.NewBuffer()
 
-		fakeWorker = new(workerfakes.FakeWorker)
 		fakeClient = new(workerfakes.FakeClient)
 		fakeStrategy = new(workerfakes.FakeContainerPlacementStrategy)
 
@@ -240,7 +239,7 @@ var _ = Describe("TaskStep", func() {
 				taskPlan.Privileged = true
 			})
 
-			It("creates the container privileged", func() {
+			It("marks the container's image spec as privileged", func() {
 				Expect(fakeClient.RunTaskStepCallCount()).To(Equal(1))
 				_, _, _, containerSpec, _, _, _, _, _, _ := fakeClient.RunTaskStepArgsForCall(0)
 				Expect(containerSpec.ImageSpec.Privileged).To(BeTrue())
@@ -540,351 +539,6 @@ var _ = Describe("TaskStep", func() {
 			})
 		})
 
-		Context("when running the task succeeds", func() {
-			BeforeEach(func() {
-				fakeClient.RunTaskStepReturns(0, []worker.VolumeMount{}, nil)
-			})
-
-			It("finishes the task via the delegate", func() {
-				Expect(fakeDelegate.FinishedCallCount()).To(Equal(1))
-				_, status := fakeDelegate.FinishedArgsForCall(0)
-				Expect(status).To(Equal(exec.ExitStatus(0)))
-			})
-
-			It("returns successfully", func() {
-				Expect(stepErr).ToNot(HaveOccurred())
-			})
-			Describe("the registered sources", func() {
-				var (
-					artifactSource1 worker.ArtifactSource
-					artifactSource2 worker.ArtifactSource
-					artifactSource3 worker.ArtifactSource
-
-					fakeMountPath1 string = "some-artifact-root/some-output-configured-path/"
-					fakeMountPath2 string = "some-artifact-root/some-other-output/"
-					fakeMountPath3 string = "some-artifact-root/some-output-configured-path-with-trailing-slash/"
-
-					fakeNewlyCreatedVolume1 *workerfakes.FakeVolume
-					fakeNewlyCreatedVolume2 *workerfakes.FakeVolume
-					fakeNewlyCreatedVolume3 *workerfakes.FakeVolume
-
-					fakeVolume1 *workerfakes.FakeVolume
-					fakeVolume2 *workerfakes.FakeVolume
-					fakeVolume3 *workerfakes.FakeVolume
-				)
-
-				BeforeEach(func() {
-					fakeNewlyCreatedVolume1 = new(workerfakes.FakeVolume)
-					fakeNewlyCreatedVolume1.HandleReturns("some-handle-1")
-					fakeNewlyCreatedVolume2 = new(workerfakes.FakeVolume)
-					fakeNewlyCreatedVolume2.HandleReturns("some-handle-2")
-					fakeNewlyCreatedVolume3 = new(workerfakes.FakeVolume)
-					fakeNewlyCreatedVolume3.HandleReturns("some-handle-3")
-
-					fakeVolume1 = new(workerfakes.FakeVolume)
-					fakeVolume1.HandleReturns("some-handle-1")
-					fakeVolume2 = new(workerfakes.FakeVolume)
-					fakeVolume2.HandleReturns("some-handle-2")
-					fakeVolume3 = new(workerfakes.FakeVolume)
-					fakeVolume3.HandleReturns("some-handle-3")
-
-					fakeClient.RunTaskStepReturns(0, []worker.VolumeMount{
-						worker.VolumeMount{
-							Volume:    fakeVolume1,
-							MountPath: fakeMountPath1,
-						},
-						worker.VolumeMount{
-							Volume:    fakeVolume2,
-							MountPath: fakeMountPath2,
-						},
-						worker.VolumeMount{
-							Volume:    fakeVolume3,
-							MountPath: fakeMountPath3,
-						},
-					}, nil)
-				})
-
-				JustBeforeEach(func() {
-					Expect(stepErr).ToNot(HaveOccurred())
-
-					var found bool
-					artifactSource1, found = repo.SourceFor("some-output")
-					Expect(found).To(BeTrue())
-
-					artifactSource2, found = repo.SourceFor("some-other-output")
-					Expect(found).To(BeTrue())
-
-					artifactSource3, found = repo.SourceFor("some-trailing-slash-output")
-					Expect(found).To(BeTrue())
-				})
-
-				It("does not register the task as a source", func() {
-					sourceMap := repo.AsMap()
-					Expect(sourceMap).To(ConsistOf(artifactSource1, artifactSource2, artifactSource3))
-				})
-
-				Describe("streaming to a destination", func() {
-					var streamedOut io.ReadCloser
-					var fakeDestination *workerfakes.FakeArtifactDestination
-
-					BeforeEach(func() {
-						fakeDestination = new(workerfakes.FakeArtifactDestination)
-
-						streamedOut = gbytes.NewBuffer()
-						fakeVolume1.StreamOutReturns(streamedOut, nil)
-					})
-
-					It("passes existing output volumes to the resource", func() {
-						_, _, _, containerSpec, _, _, _, _, _, _ := fakeClient.RunTaskStepArgsForCall(0)
-						Expect(containerSpec.Outputs).To(Equal(worker.OutputPaths{
-							"some-output":                "some-artifact-root/some-output-configured-path/",
-							"some-other-output":          "some-artifact-root/some-other-output/",
-							"some-trailing-slash-output": "some-artifact-root/some-output-configured-path-with-trailing-slash/",
-						}))
-					})
-
-					It("streams the data from the volumes to the destination", func() {
-						err := artifactSource1.StreamTo(logger, fakeDestination)
-						Expect(err).NotTo(HaveOccurred())
-
-						Expect(fakeVolume1.StreamOutCallCount()).To(Equal(1))
-						path := fakeVolume1.StreamOutArgsForCall(0)
-						Expect(path).To(Equal("."))
-
-						Expect(fakeDestination.StreamInCallCount()).To(Equal(1))
-						dest, src := fakeDestination.StreamInArgsForCall(0)
-						Expect(dest).To(Equal("."))
-						Expect(src).To(Equal(streamedOut))
-					})
-				})
-
-				Describe("streaming a file out", func() {
-					Context("when the container can stream out", func() {
-						var (
-							fileContent = "file-content"
-
-							tgzBuffer *gbytes.Buffer
-						)
-
-						BeforeEach(func() {
-							tgzBuffer = gbytes.NewBuffer()
-							fakeVolume1.StreamOutReturns(tgzBuffer, nil)
-						})
-
-						Context("when the file exists", func() {
-							BeforeEach(func() {
-								zstdWriter := zstd.NewWriter(tgzBuffer)
-								defer zstdWriter.Close()
-
-								tarWriter := tar.NewWriter(zstdWriter)
-								defer tarWriter.Close()
-
-								err := tarWriter.WriteHeader(&tar.Header{
-									Name: "some-file",
-									Mode: 0644,
-									Size: int64(len(fileContent)),
-								})
-								Expect(err).NotTo(HaveOccurred())
-
-								_, err = tarWriter.Write([]byte(fileContent))
-								Expect(err).NotTo(HaveOccurred())
-							})
-
-							It("streams out the given path", func() {
-								reader, err := artifactSource1.StreamFile(logger, "some-path")
-								Expect(err).NotTo(HaveOccurred())
-
-								Expect(ioutil.ReadAll(reader)).To(Equal([]byte(fileContent)))
-
-								path := fakeVolume1.StreamOutArgsForCall(0)
-								Expect(path).To(Equal("some-path"))
-							})
-
-							Describe("closing the stream", func() {
-								It("closes the stream from the versioned source", func() {
-									reader, err := artifactSource1.StreamFile(logger, "some-path")
-									Expect(err).NotTo(HaveOccurred())
-
-									Expect(tgzBuffer.Closed()).To(BeFalse())
-
-									err = reader.Close()
-									Expect(err).NotTo(HaveOccurred())
-
-									Expect(tgzBuffer.Closed()).To(BeTrue())
-								})
-							})
-						})
-
-						Context("but the stream is empty", func() {
-							It("returns ErrFileNotFound", func() {
-								_, err := artifactSource1.StreamFile(logger, "some-path")
-								Expect(err).To(MatchError(exec.FileNotFoundError{Path: "some-path"}))
-							})
-						})
-					})
-
-					Context("when the volume cannot stream out", func() {
-						disaster := errors.New("nope")
-
-						BeforeEach(func() {
-							fakeVolume1.StreamOutReturns(nil, disaster)
-						})
-
-						It("returns the error", func() {
-							_, err := artifactSource1.StreamFile(logger, "some-path")
-							Expect(err).To(Equal(disaster))
-						})
-					})
-				})
-			})
-
-		})
-
-		Context("when running the task fails", func() {
-			disaster := errors.New("task run failed")
-
-			BeforeEach(func() {
-				fakeClient.RunTaskStepReturns(-1, []worker.VolumeMount{}, disaster)
-			})
-
-			It("returns the error", func() {
-				Expect(stepErr).To(Equal(disaster))
-			})
-
-			It("is not successful", func() {
-				Expect(taskStep.Succeeded()).To(BeFalse())
-			})
-		})
-
-		Context("when the task step is interrupted", func() {
-			var results chan struct{}
-			BeforeEach(func() {
-				results = make(chan struct{})
-				cancel()
-			})
-
-			It("stops the container", func() {
-				Expect(stepErr).To(Equal(context.Canceled))
-			})
-
-			It("is not successful", func() {
-				Expect(taskStep.Succeeded()).To(BeFalse())
-			})
-
-			It("waits for RunTaskStep to return", func() {
-				Fail("not implemented")
-			})
-
-		})
-
-		Context("when RunTaskStep returns volume mounts", func() {
-			var (
-				fakeMountPath1 string = "some-artifact-root/some-output-configured-path/"
-				fakeMountPath2 string = "some-artifact-root/some-other-output/"
-				fakeMountPath3 string = "some-artifact-root/some-output-configured-path-with-trailing-slash/"
-
-				fakeVolume1 *workerfakes.FakeVolume
-				fakeVolume2 *workerfakes.FakeVolume
-				fakeVolume3 *workerfakes.FakeVolume
-			)
-
-			BeforeEach(func() {
-				taskPlan.Config = &atc.TaskConfig{
-					Platform:  "some-platform",
-					RootfsURI: "some-image",
-					Params:    map[string]string{"SOME": "params"},
-					Run: atc.TaskRunConfig{
-						Path: "ls",
-						Args: []string{"some", "args"},
-					},
-					Outputs: []atc.TaskOutputConfig{
-						{Name: "some-output", Path: "some-output-configured-path"},
-						{Name: "some-other-output"},
-						{Name: "some-trailing-slash-output", Path: "some-output-configured-path-with-trailing-slash/"},
-					},
-				}
-
-				fakeVolume1 = new(workerfakes.FakeVolume)
-				fakeVolume1.HandleReturns("some-handle-1")
-				fakeVolume2 = new(workerfakes.FakeVolume)
-				fakeVolume2.HandleReturns("some-handle-2")
-				fakeVolume3 = new(workerfakes.FakeVolume)
-				fakeVolume3.HandleReturns("some-handle-3")
-
-				fakeClient.RunTaskStepReturns(0,
-					[]worker.VolumeMount{
-						worker.VolumeMount{
-							Volume:    fakeVolume1,
-							MountPath: fakeMountPath1,
-						},
-						worker.VolumeMount{
-							Volume:    fakeVolume2,
-							MountPath: fakeMountPath2,
-						},
-						worker.VolumeMount{
-							Volume:    fakeVolume3,
-							MountPath: fakeMountPath3,
-						},
-					},
-					nil)
-			})
-
-			It("re-registers the outputs as sources", func() {
-				artifactSource1, found := repo.SourceFor("some-output")
-				Expect(found).To(BeTrue())
-
-				artifactSource2, found := repo.SourceFor("some-other-output")
-				Expect(found).To(BeTrue())
-
-				artifactSource3, found := repo.SourceFor("some-trailing-slash-output")
-				Expect(found).To(BeTrue())
-
-				sourceMap := repo.AsMap()
-				Expect(sourceMap).To(ConsistOf(artifactSource1, artifactSource2, artifactSource3))
-			})
-		})
-
-		Context("when output is remapped", func() {
-			var (
-				fakeMountPath string = "some-artifact-root/generic-remapped-output/"
-			)
-
-			BeforeEach(func() {
-				taskPlan.OutputMapping = map[string]string{"generic-remapped-output": "specific-remapped-output"}
-				taskPlan.Config = &atc.TaskConfig{
-					Platform: "some-platform",
-					Run: atc.TaskRunConfig{
-						Path: "ls",
-					},
-					Outputs: []atc.TaskOutputConfig{
-						{Name: "generic-remapped-output"},
-					},
-				}
-
-				fakeVolume := new(workerfakes.FakeVolume)
-				fakeVolume.HandleReturns("some-handle")
-
-				fakeClient.RunTaskStepReturns(0, []worker.VolumeMount{
-					worker.VolumeMount{
-						Volume:    fakeVolume,
-						MountPath: fakeMountPath,
-					},
-				}, nil)
-			})
-
-			JustBeforeEach(func() {
-				Expect(stepErr).ToNot(HaveOccurred())
-			})
-
-			It("registers the outputs as sources with specific name", func() {
-				artifactSource, found := repo.SourceFor("specific-remapped-output")
-				Expect(found).To(BeTrue())
-
-				sourceMap := repo.AsMap()
-				Expect(sourceMap).To(ConsistOf(artifactSource))
-			})
-		})
-
 		Context("when an image artifact name is specified", func() {
 			BeforeEach(func() {
 				taskPlan.ImageArtifactName = "some-image-artifact"
@@ -898,7 +552,7 @@ var _ = Describe("TaskStep", func() {
 					repo.RegisterSource("some-image-artifact", imageArtifactSource)
 				})
 
-				It("chooses a worker and creates the container with the image artifact source", func() {
+				It("configures it in the containerSpec's ImageSpec", func() {
 					_, _, _, containerSpec, workerSpec, _, _, _, _, _ := fakeClient.RunTaskStepArgsForCall(0)
 					Expect(containerSpec.ImageSpec).To(Equal(worker.ImageSpec{
 						ImageArtifactSource: imageArtifactSource,
@@ -1077,13 +731,15 @@ var _ = Describe("TaskStep", func() {
 		})
 
 		Context("when a run dir is specified", func() {
+			var dir string
 			BeforeEach(func() {
-				taskPlan.Config.Run.Dir = "/some/dir"
+				dir = "/some/dir"
+				taskPlan.Config.Run.Dir = dir
 			})
 
-			It("runs a process in the specified (custom) directory", func() {
-				_, _, _, containerSpec, _, _, _, _, _, _ := fakeClient.RunTaskStepArgsForCall(0)
-				Expect(containerSpec.Dir).To(Equal("some-artifact-root/some/dir"))
+			It("specifies it in the process  spec", func() {
+				_, _, _, _, _, _, _, _, processSpec, _ := fakeClient.RunTaskStepArgsForCall(0)
+				Expect(processSpec.Dir).To(Equal(dir))
 			})
 		})
 
@@ -1098,121 +754,282 @@ var _ = Describe("TaskStep", func() {
 			})
 
 			It("doesn't bother adding the user to the run spec", func() {
-				_, _, _, containerSpec, _, _, _, _, _, _ := fakeClient.RunTaskStepArgsForCall(0)
-				Expect(containerSpec.User).To(BeEmpty())
+				_, _, _, _, _, _, _, _, processSpec, _ := fakeClient.RunTaskStepArgsForCall(0)
+				Expect(processSpec.User).To(BeEmpty())
 			})
 		})
 
-		Context("when the process exits 0", func() {
+		Context("when running the task succeeds", func() {
+			var taskStepStatus int
 			BeforeEach(func() {
-				fakeProcess.WaitReturns(0, nil)
+				taskPlan.Config = &atc.TaskConfig{
+					Platform:  "some-platform",
+					RootfsURI: "some-image",
+					Params:    map[string]string{"SOME": "params"},
+					Run: atc.TaskRunConfig{
+						Path: "ls",
+						Args: []string{"some", "args"},
+					},
+					Outputs: []atc.TaskOutputConfig{
+						{Name: "some-output", Path: "some-output-configured-path"},
+						{Name: "some-other-output"},
+						{Name: "some-trailing-slash-output", Path: "some-output-configured-path-with-trailing-slash/"},
+					},
+				}
 			})
 
-			It("saves the exit status property", func() {
-				Expect(fakeContainer.SetPropertyCallCount()).To(Equal(1))
-
-				name, value := fakeContainer.SetPropertyArgsForCall(0)
-				Expect(name).To(Equal("concourse:exit-status"))
-				Expect(value).To(Equal("0"))
-			})
-
-			It("is successful", func() {
-				Expect(stepErr).To(BeNil())
-				Expect(taskStep.Succeeded()).To(BeTrue())
-			})
-
-			It("doesn't register a source", func() {
+			It("returns successfully", func() {
 				Expect(stepErr).ToNot(HaveOccurred())
-
-				sourceMap := repo.AsMap()
-				Expect(sourceMap).To(BeEmpty())
 			})
 
-			Context("when saving the exit status succeeds", func() {
+			Context("when the task exits with zero status", func() {
 				BeforeEach(func() {
-					fakeContainer.SetPropertyReturns(nil)
+					taskStepStatus = 0
+					fakeClient.RunTaskStepReturns(taskStepStatus, []worker.VolumeMount{}, nil)
+				})
+				It("finishes the task via the delegate", func() {
+					Expect(fakeDelegate.FinishedCallCount()).To(Equal(1))
+					_, status := fakeDelegate.FinishedArgsForCall(0)
+					Expect(status).To(Equal(exec.ExitStatus(taskStepStatus)))
+				})
+
+				It("returns successfully", func() {
+					Expect(stepErr).ToNot(HaveOccurred())
+				})
+
+				Describe("the registered sources", func() {
+					var (
+						artifactSource1 worker.ArtifactSource
+						artifactSource2 worker.ArtifactSource
+						artifactSource3 worker.ArtifactSource
+
+						fakeMountPath1 string = "some-artifact-root/some-output-configured-path/"
+						fakeMountPath2 string = "some-artifact-root/some-other-output/"
+						fakeMountPath3 string = "some-artifact-root/some-output-configured-path-with-trailing-slash/"
+
+						fakeNewlyCreatedVolume1 *workerfakes.FakeVolume
+						fakeNewlyCreatedVolume2 *workerfakes.FakeVolume
+						fakeNewlyCreatedVolume3 *workerfakes.FakeVolume
+
+						fakeVolume1 *workerfakes.FakeVolume
+						fakeVolume2 *workerfakes.FakeVolume
+						fakeVolume3 *workerfakes.FakeVolume
+					)
+
+					BeforeEach(func() {
+						fakeNewlyCreatedVolume1 = new(workerfakes.FakeVolume)
+						fakeNewlyCreatedVolume1.HandleReturns("some-handle-1")
+						fakeNewlyCreatedVolume2 = new(workerfakes.FakeVolume)
+						fakeNewlyCreatedVolume2.HandleReturns("some-handle-2")
+						fakeNewlyCreatedVolume3 = new(workerfakes.FakeVolume)
+						fakeNewlyCreatedVolume3.HandleReturns("some-handle-3")
+
+						fakeVolume1 = new(workerfakes.FakeVolume)
+						fakeVolume1.HandleReturns("some-handle-1")
+						fakeVolume2 = new(workerfakes.FakeVolume)
+						fakeVolume2.HandleReturns("some-handle-2")
+						fakeVolume3 = new(workerfakes.FakeVolume)
+						fakeVolume3.HandleReturns("some-handle-3")
+
+						fakeClient.RunTaskStepReturns(0, []worker.VolumeMount{
+							worker.VolumeMount{
+								Volume:    fakeVolume1,
+								MountPath: fakeMountPath1,
+							},
+							worker.VolumeMount{
+								Volume:    fakeVolume2,
+								MountPath: fakeMountPath2,
+							},
+							worker.VolumeMount{
+								Volume:    fakeVolume3,
+								MountPath: fakeMountPath3,
+							},
+						}, nil)
+					})
+
+					JustBeforeEach(func() {
+						Expect(stepErr).ToNot(HaveOccurred())
+
+						var found bool
+						artifactSource1, found = repo.SourceFor("some-output")
+						Expect(found).To(BeTrue())
+
+						artifactSource2, found = repo.SourceFor("some-other-output")
+						Expect(found).To(BeTrue())
+
+						artifactSource3, found = repo.SourceFor("some-trailing-slash-output")
+						Expect(found).To(BeTrue())
+					})
+
+					It("does not register the task as a source", func() {
+						sourceMap := repo.AsMap()
+						Expect(sourceMap).To(ConsistOf(artifactSource1, artifactSource2, artifactSource3))
+					})
+
+					Describe("streaming to a destination", func() {
+						var streamedOut io.ReadCloser
+						var fakeDestination *workerfakes.FakeArtifactDestination
+
+						BeforeEach(func() {
+							fakeDestination = new(workerfakes.FakeArtifactDestination)
+
+							streamedOut = gbytes.NewBuffer()
+							fakeVolume1.StreamOutReturns(streamedOut, nil)
+						})
+
+						It("passes existing output volumes to the resource", func() {
+							_, _, _, containerSpec, _, _, _, _, _, _ := fakeClient.RunTaskStepArgsForCall(0)
+							Expect(containerSpec.Outputs).To(Equal(worker.OutputPaths{
+								"some-output":                "some-artifact-root/some-output-configured-path/",
+								"some-other-output":          "some-artifact-root/some-other-output/",
+								"some-trailing-slash-output": "some-artifact-root/some-output-configured-path-with-trailing-slash/",
+							}))
+						})
+
+						It("streams the data from the volumes to the destination", func() {
+							err := artifactSource1.StreamTo(logger, fakeDestination)
+							Expect(err).NotTo(HaveOccurred())
+
+							Expect(fakeVolume1.StreamOutCallCount()).To(Equal(1))
+							path := fakeVolume1.StreamOutArgsForCall(0)
+							Expect(path).To(Equal("."))
+
+							Expect(fakeDestination.StreamInCallCount()).To(Equal(1))
+							dest, src := fakeDestination.StreamInArgsForCall(0)
+							Expect(dest).To(Equal("."))
+							Expect(src).To(Equal(streamedOut))
+						})
+					})
+
+					Describe("streaming a file out", func() {
+						Context("when the container can stream out", func() {
+							var (
+								fileContent = "file-content"
+
+								tgzBuffer *gbytes.Buffer
+							)
+
+							BeforeEach(func() {
+								tgzBuffer = gbytes.NewBuffer()
+								fakeVolume1.StreamOutReturns(tgzBuffer, nil)
+							})
+
+							Context("when the file exists", func() {
+								BeforeEach(func() {
+									zstdWriter := zstd.NewWriter(tgzBuffer)
+									defer zstdWriter.Close()
+
+									tarWriter := tar.NewWriter(zstdWriter)
+									defer tarWriter.Close()
+
+									err := tarWriter.WriteHeader(&tar.Header{
+										Name: "some-file",
+										Mode: 0644,
+										Size: int64(len(fileContent)),
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									_, err = tarWriter.Write([]byte(fileContent))
+									Expect(err).NotTo(HaveOccurred())
+								})
+
+								It("streams out the given path", func() {
+									reader, err := artifactSource1.StreamFile(logger, "some-path")
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(ioutil.ReadAll(reader)).To(Equal([]byte(fileContent)))
+
+									path := fakeVolume1.StreamOutArgsForCall(0)
+									Expect(path).To(Equal("some-path"))
+								})
+
+								Describe("closing the stream", func() {
+									It("closes the stream from the versioned source", func() {
+										reader, err := artifactSource1.StreamFile(logger, "some-path")
+										Expect(err).NotTo(HaveOccurred())
+
+										Expect(tgzBuffer.Closed()).To(BeFalse())
+
+										err = reader.Close()
+										Expect(err).NotTo(HaveOccurred())
+
+										Expect(tgzBuffer.Closed()).To(BeTrue())
+									})
+								})
+							})
+
+							Context("but the stream is empty", func() {
+								It("returns ErrFileNotFound", func() {
+									_, err := artifactSource1.StreamFile(logger, "some-path")
+									Expect(err).To(MatchError(exec.FileNotFoundError{Path: "some-path"}))
+								})
+							})
+						})
+
+						Context("when the volume cannot stream out", func() {
+							disaster := errors.New("nope")
+
+							BeforeEach(func() {
+								fakeVolume1.StreamOutReturns(nil, disaster)
+							})
+
+							It("returns the error", func() {
+								_, err := artifactSource1.StreamFile(logger, "some-path")
+								Expect(err).To(Equal(disaster))
+							})
+						})
+					})
+				})
+			})
+
+			Context("when the task exits with nonzero status", func() {
+				BeforeEach(func() {
+					taskStepStatus = 5
+					fakeClient.RunTaskStepReturns(taskStepStatus, []worker.VolumeMount{}, nil)
+				})
+				It("finishes the task via the delegate", func() {
+					Expect(fakeDelegate.FinishedCallCount()).To(Equal(1))
+					_, status := fakeDelegate.FinishedArgsForCall(0)
+					Expect(status).To(Equal(exec.ExitStatus(taskStepStatus)))
 				})
 
 				It("returns successfully", func() {
 					Expect(stepErr).ToNot(HaveOccurred())
 				})
 			})
-
-			Context("when saving the exit status fails", func() {
-				disaster := errors.New("nope")
-
-				BeforeEach(func() {
-					fakeContainer.SetPropertyStub = func(name string, value string) error {
-						defer GinkgoRecover()
-
-						if name == "concourse:exit-status" {
-							return disaster
-						}
-
-						return nil
-					}
-				})
-
-				It("returns the error", func() {
-					Expect(stepErr).To(Equal(disaster))
-				})
-
-				It("is not successful", func() {
-					Expect(taskStep.Succeeded()).To(BeFalse())
-				})
-			})
 		})
 
-		Context("when the process exits nonzero", func() {
+		Context("when running the task fails", func() {
+			disaster := errors.New("task run failed")
+
 			BeforeEach(func() {
-				fakeClient.RunTaskStepReturns(1, []worker.VolumeMount{}, nil)
+				fakeClient.RunTaskStepReturns(-1, []worker.VolumeMount{}, disaster)
 			})
 
-			It("finishes the task via the delegate", func() {
-				Expect(fakeDelegate.FinishedCallCount()).To(Equal(1))
-				_, status := fakeDelegate.FinishedArgsForCall(0)
-				Expect(status).To(Equal(exec.ExitStatus(1)))
-			})
-
-			It("saves the exit status property", func() {
-				Expect(stepErr).ToNot(HaveOccurred())
+			It("returns the error", func() {
+				Expect(stepErr).To(Equal(disaster))
 			})
 
 			It("is not successful", func() {
-				Expect(stepErr).ToNot(HaveOccurred())
-
 				Expect(taskStep.Succeeded()).To(BeFalse())
 			})
-
 		})
 
-		Context("when the process is interrupted", func() {
-			var stopped chan struct{}
+		Context("when the task step is interrupted", func() {
 			BeforeEach(func() {
-				stopped = make(chan struct{})
-
 				cancel()
 			})
 
+			It("stops the container", func() {
+				Expect(stepErr).To(Equal(context.Canceled))
+			})
+
 			It("is not successful", func() {
 				Expect(taskStep.Succeeded()).To(BeFalse())
 			})
 
-			Context("when container.stop returns an error", func() {
-				var disaster error
-
-				BeforeEach(func() {
-					disaster = errors.New("gotta get away")
-					fakeClient.RunTaskStepReturns(0, []worker.VolumeMount{}, disaster)
-				})
-
-				It("doesn't return the error", func() {
-					Expect(stepErr).To(Equal(context.Canceled))
-				})
-
-				It("is not successful", func() {
-					Expect(taskStep.Succeeded()).To(BeFalse())
-				})
+			It("waits for RunTaskStep to return", func() {
+				Expect(fakeClient.RunTaskStepCallCount()).To(Equal(1))
 			})
 
 			It("doesn't register a source", func() {
@@ -1221,6 +1038,113 @@ var _ = Describe("TaskStep", func() {
 			})
 		})
 
-	})
+		Context("when RunTaskStep returns volume mounts", func() {
+			var (
+				fakeMountPath1 string = "some-artifact-root/some-output-configured-path/"
+				fakeMountPath2 string = "some-artifact-root/some-other-output/"
+				fakeMountPath3 string = "some-artifact-root/some-output-configured-path-with-trailing-slash/"
 
+				fakeVolume1 *workerfakes.FakeVolume
+				fakeVolume2 *workerfakes.FakeVolume
+				fakeVolume3 *workerfakes.FakeVolume
+			)
+
+			BeforeEach(func() {
+				taskPlan.Config = &atc.TaskConfig{
+					Platform:  "some-platform",
+					RootfsURI: "some-image",
+					Params:    map[string]string{"SOME": "params"},
+					Run: atc.TaskRunConfig{
+						Path: "ls",
+						Args: []string{"some", "args"},
+					},
+					Outputs: []atc.TaskOutputConfig{
+						{Name: "some-output", Path: "some-output-configured-path"},
+						{Name: "some-other-output"},
+						{Name: "some-trailing-slash-output", Path: "some-output-configured-path-with-trailing-slash/"},
+					},
+				}
+
+				fakeVolume1 = new(workerfakes.FakeVolume)
+				fakeVolume1.HandleReturns("some-handle-1")
+				fakeVolume2 = new(workerfakes.FakeVolume)
+				fakeVolume2.HandleReturns("some-handle-2")
+				fakeVolume3 = new(workerfakes.FakeVolume)
+				fakeVolume3.HandleReturns("some-handle-3")
+
+				fakeClient.RunTaskStepReturns(0,
+					[]worker.VolumeMount{
+						worker.VolumeMount{
+							Volume:    fakeVolume1,
+							MountPath: fakeMountPath1,
+						},
+						worker.VolumeMount{
+							Volume:    fakeVolume2,
+							MountPath: fakeMountPath2,
+						},
+						worker.VolumeMount{
+							Volume:    fakeVolume3,
+							MountPath: fakeMountPath3,
+						},
+					},
+					nil)
+			})
+
+			It("re-registers the outputs as sources", func() {
+				artifactSource1, found := repo.SourceFor("some-output")
+				Expect(found).To(BeTrue())
+
+				artifactSource2, found := repo.SourceFor("some-other-output")
+				Expect(found).To(BeTrue())
+
+				artifactSource3, found := repo.SourceFor("some-trailing-slash-output")
+				Expect(found).To(BeTrue())
+
+				sourceMap := repo.AsMap()
+				Expect(sourceMap).To(ConsistOf(artifactSource1, artifactSource2, artifactSource3))
+			})
+		})
+
+		Context("when output is remapped", func() {
+			var (
+				fakeMountPath string = "some-artifact-root/generic-remapped-output/"
+			)
+
+			BeforeEach(func() {
+				taskPlan.OutputMapping = map[string]string{"generic-remapped-output": "specific-remapped-output"}
+				taskPlan.Config = &atc.TaskConfig{
+					Platform: "some-platform",
+					Run: atc.TaskRunConfig{
+						Path: "ls",
+					},
+					Outputs: []atc.TaskOutputConfig{
+						{Name: "generic-remapped-output"},
+					},
+				}
+
+				fakeVolume := new(workerfakes.FakeVolume)
+				fakeVolume.HandleReturns("some-handle")
+
+				fakeClient.RunTaskStepReturns(0, []worker.VolumeMount{
+					worker.VolumeMount{
+						Volume:    fakeVolume,
+						MountPath: fakeMountPath,
+					},
+				}, nil)
+			})
+
+			JustBeforeEach(func() {
+				Expect(stepErr).ToNot(HaveOccurred())
+			})
+
+			It("registers the outputs as sources with specific name", func() {
+				artifactSource, found := repo.SourceFor("specific-remapped-output")
+				Expect(found).To(BeTrue())
+
+				sourceMap := repo.AsMap()
+				Expect(sourceMap).To(ConsistOf(artifactSource))
+			})
+		})
+
+	})
 })

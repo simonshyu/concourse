@@ -5,6 +5,7 @@ import (
 	"code.cloudfoundry.org/garden/gardenfakes"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/exec/execfakes"
 	"github.com/onsi/gomega/gbytes"
@@ -661,6 +662,43 @@ var _ = Describe("Client", func() {
 						Expect(err).ToNot(HaveOccurred())
 					})
 
+					It("saves the exit status property", func() {
+						Expect(fakeContainer.SetPropertyCallCount()).To(Equal(1))
+
+						name, value := fakeContainer.SetPropertyArgsForCall(0)
+						Expect(name).To(Equal("concourse:exit-status"))
+						Expect(value).To(Equal("0"))
+					})
+
+					Context("when saving the exit status succeeds", func() {
+						BeforeEach(func() {
+							fakeContainer.SetPropertyReturns(nil)
+						})
+
+						It("returns successfully", func() {
+							Expect(err).ToNot(HaveOccurred())
+						})
+					})
+
+					Context("when saving the exit status fails", func() {
+						disaster := errors.New("nope")
+
+						BeforeEach(func() {
+							fakeContainer.SetPropertyStub = func(name string, value string) error {
+								defer GinkgoRecover()
+
+								if name == "concourse:exit-status" {
+									return disaster
+								}
+
+								return nil
+							}
+						})
+
+						It("returns the error", func() {
+							Expect(err).To(Equal(disaster))
+						})
+					})
 					Context("when volumes are configured and present on the container", func() {
 						var (
 							fakeMountPath1 string = "some-artifact-root/some-output-configured-path/"
@@ -712,24 +750,18 @@ var _ = Describe("Client", func() {
 								},
 							))
 						})
+
 					})
 				})
 
-
 				Context("when the process exits on failure", func() {
-					disaster := errors.New("process failed")
 					BeforeEach(func() {
 						fakeProcessExitCode = 128 + 15
-						fakeProcess.WaitReturns(fakeProcessExitCode, disaster)
+						fakeProcess.WaitReturns(fakeProcessExitCode, nil)
 					})
 					It("returns an unsuccessful result", func() {
 						Expect(status).To(Equal(fakeProcessExitCode))
-						Expect(err).To(HaveOccurred())
-						Expect(err).To(Equal(disaster))
-					})
-
-					It("returns no volume mounts", func() {
-						Expect(volumeMounts).To(BeEmpty())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					It("saves the exit status property", func() {
@@ -737,7 +769,7 @@ var _ = Describe("Client", func() {
 
 						name, value := fakeContainer.SetPropertyArgsForCall(0)
 						Expect(name).To(Equal("concourse:exit-status"))
-						Expect(value).To(Equal("143"))
+						Expect(value).To(Equal(fmt.Sprint(fakeProcessExitCode)))
 					})
 
 					Context("when saving the exit status succeeds", func() {
@@ -768,6 +800,22 @@ var _ = Describe("Client", func() {
 						It("returns the error", func() {
 							Expect(err).To(Equal(disaster))
 						})
+					})
+					It("returns all the volume mounts", func() {
+						Expect(volumeMounts).To(ConsistOf(
+							worker.VolumeMount{
+								Volume:    fakeVolume1,
+								MountPath: fakeMountPath1,
+							},
+							worker.VolumeMount{
+								Volume:    fakeVolume2,
+								MountPath: fakeMountPath2,
+							},
+							worker.VolumeMount{
+								Volume:    fakeVolume3,
+								MountPath: fakeMountPath3,
+							},
+						))
 					})
 				})
 
