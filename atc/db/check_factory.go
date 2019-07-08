@@ -14,7 +14,7 @@ import (
 //go:generate counterfeiter . CheckFactory
 
 type CheckFactory interface {
-	PendingChecks() ([]Check, error)
+	StartedChecks() ([]Check, error)
 	CreateCheck(int, int, int, atc.Plan) (Check, bool, error)
 	Resources() ([]Resource, error)
 	ResourceTypes() ([]ResourceType, error)
@@ -45,11 +45,9 @@ func (c *checkFactory) AcquireScanningLock(
 	)
 }
 
-func (c *checkFactory) PendingChecks() ([]Check, error) {
+func (c *checkFactory) StartedChecks() ([]Check, error) {
 	rows, err := checksQuery.
-		Where(sq.Eq{
-			"status": CheckStatusPending,
-		}).
+		Where(sq.Eq{"status": CheckStatusStarted}).
 		OrderBy("c.id").
 		RunWith(c.conn).
 		Query()
@@ -109,7 +107,7 @@ func (c *checkFactory) CreateCheck(resourceConfigScopeID int, resourceConfigID i
 			resourceConfigID,
 			baseResourceTypeID,
 			schema,
-			CheckStatusPending,
+			CheckStatusStarted,
 			encryptedPayload,
 			nonce,
 		).
@@ -138,7 +136,7 @@ func (c *checkFactory) CreateCheck(resourceConfigScopeID int, resourceConfigID i
 		resourceConfigID:      resourceConfigID,
 		baseResourceTypeID:    baseResourceTypeID,
 		schema:                schema,
-		status:                CheckStatusPending,
+		status:                CheckStatusStarted,
 		plan:                  plan,
 		createTime:            createTime,
 

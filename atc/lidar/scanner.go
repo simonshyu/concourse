@@ -2,14 +2,35 @@ package lidar
 
 import (
 	"context"
-	"errors"
+	"sync"
 	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/creds"
 	"github.com/concourse/concourse/atc/db"
+	"github.com/pkg/errors"
 )
+
+//go:generate counterfeiter . Checkable
+
+type Checkable interface {
+	Name() string
+	Type() string
+	PipelineID() int
+	Source() atc.Source
+	Tags() atc.Tags
+	CheckEvery() string
+	CheckTimeout() string
+	LastCheckEndTime() time.Time
+
+	SetResourceConfig(
+		atc.Source,
+		atc.VersionedResourceTypes,
+	) (db.ResourceConfigScope, error)
+
+	SetCheckSetupError(error) error
+}
 
 func NewScanner(
 	logger lager.Logger,
@@ -66,33 +87,33 @@ func (s *scanner) Run(ctx context.Context) error {
 		return err
 	}
 
+	waitGroup := new(sync.WaitGroup)
+
 	for _, resource := range resources {
-		variables := creds.NewVariables(s.secrets, resource.PipelineName(), resource.TeamName())
-
-		filteredTypes := db.ResourceTypes(resourceTypes).BuildTree(resource.Type())
-
-		if err = s.tryCreateCheck(resource, variables, filteredTypes); err != nil {
-			s.logger.Error("failed-to-create-check", err)
-		}
+		waitGroup.Add(1)
+		go s.scan(waitGroup, resource, resourceTypes)
 	}
+
+	waitGroup.Wait()
 
 	return nil
 }
 
-type Checkable interface {
-	Name() string
-	Type() string
-	PipelineID() int
-	Source() atc.Source
-	Tags() atc.Tags
-	CheckEvery() string
-	CheckTimeout() string
-	LastCheckStartTime() time.Time
+func (s *scanner) scan(waitGroup *sync.WaitGroup, resource db.Resource, resourceTypes db.ResourceTypes) {
+	defer waitGroup.Done()
 
-	SetResourceConfig(
-		atc.Source,
-		atc.VersionedResourceTypes,
-	) (db.ResourceConfigScope, error)
+	variables := creds.NewVariables(
+		s.secrets,
+		resource.TeamName(),
+		resource.PipelineName(),
+	)
+
+	filteredTypes := resourceTypes.BuildTree(resource.Type())
+
+	if err := s.tryCreateCheck(resource, variables, filteredTypes); err != nil {
+		s.logger.Error("failed-to-create-check", err)
+		s.setCheckError(s.logger, resource, err)
+	}
 }
 
 func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables, resourceTypes db.ResourceTypes) error {
@@ -102,7 +123,9 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 	parentType, found := s.parentType(checkable, resourceTypes)
 	if found {
 		if err := s.tryCreateCheck(parentType, variables, resourceTypes); err != nil {
-			return err
+			s.logger.Error("failed-to-create-type-check", err)
+			s.setCheckError(s.logger, parentType, err)
+			return errors.Wrapf(err, "parent type '%v' error", parentType.Name())
 		}
 
 		if parentType.Version() == nil {
@@ -126,18 +149,7 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 		}
 	}
 
-	// TODO need to check last check start time so it knows if there
-	// is a check for current resource config scope already
-	// otherwise there will be duplicate checks created if a check takes
-	// longer than the check interval, since the end time is still not updated
-	// when a new round of scan happens
-
-	// TODO there is another case of duplicate checks created when one check
-	// is created by scanner, checker would wait at most 10sec to start it
-	// and update the start timestamp. While at the same time next scan is already
-	// kicked off, without any info (start or end time) available, scanner will
-	// create another check
-	if time.Now().Before(checkable.LastCheckStartTime().Add(interval)) {
+	if time.Now().Before(checkable.LastCheckEndTime().Add(interval)) {
 		s.logger.Debug("interval-not-reached", lager.Data{
 			"interval": interval,
 		})
@@ -180,16 +192,17 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 		Source:      source,
 		Tags:        checkable.Tags(),
 		Timeout:     timeout.String(),
-		FromVersion: &fromVersion,
+		FromVersion: fromVersion,
 
 		VersionedResourceTypes: versionedResourceTypes,
 	})
 
-	resourceConfigScopeID := resourceConfigScope.ID()
-	resourceConfigID := resourceConfigScope.ResourceConfig().ID()
-	baseResourceTypeID := resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID
-
-	_, created, err := s.checkFactory.CreateCheck(resourceConfigScopeID, resourceConfigID, baseResourceTypeID, plan)
+	_, created, err := s.checkFactory.CreateCheck(
+		resourceConfigScope.ID(),
+		resourceConfigScope.ResourceConfig().ID(),
+		resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID,
+		plan,
+	)
 	if err != nil {
 		s.logger.Error("failed-to-create-check", err)
 		return err
@@ -209,4 +222,11 @@ func (s *scanner) parentType(checkable Checkable, resourceTypes []db.ResourceTyp
 		}
 	}
 	return nil, false
+}
+
+func (s *scanner) setCheckError(logger lager.Logger, checkable Checkable, err error) {
+	setErr := checkable.SetCheckSetupError(err)
+	if setErr != nil {
+		logger.Error("failed-to-set-check-error", setErr)
+	}
 }

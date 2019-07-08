@@ -109,12 +109,12 @@ type PutPlan struct {
 }
 
 type CheckPlan struct {
-	Type        string   `json:"type"`
-	Name        string   `json:"name,omitempty"`
-	Source      Source   `json:"source"`
-	Tags        Tags     `json:"tags,omitempty"`
-	Timeout     string   `json:"timeout,omitempty"`
-	FromVersion *Version `json:"from_version,omitempty"`
+	Type        string  `json:"type"`
+	Name        string  `json:"name,omitempty"`
+	Source      Source  `json:"source"`
+	Tags        Tags    `json:"tags,omitempty"`
+	Timeout     string  `json:"timeout,omitempty"`
+	FromVersion Version `json:"from_version,omitempty"`
 
 	VersionedResourceTypes VersionedResourceTypes `json:"resource_types,omitempty"`
 }

@@ -26,7 +26,7 @@ var _ = Describe("Checker", func() {
 		fakeCheckFactory *dbfakes.FakeCheckFactory
 		fakeEngine       *enginefakes.FakeEngine
 
-		checker *lidar.Checker
+		checker Checker
 		logger  *lagertest.TestLogger
 	)
 
@@ -50,7 +50,7 @@ var _ = Describe("Checker", func() {
 
 		Context("when retrieving checks fails", func() {
 			BeforeEach(func() {
-				fakeCheckFactory.PendingChecksReturns(nil, errors.New("nope"))
+				fakeCheckFactory.StartedChecksReturns(nil, errors.New("nope"))
 			})
 
 			It("errors", func() {
@@ -63,7 +63,7 @@ var _ = Describe("Checker", func() {
 
 			BeforeEach(func() {
 
-				fakeCheckFactory.PendingChecksReturns([]db.Check{
+				fakeCheckFactory.StartedChecksReturns([]db.Check{
 					new(dbfakes.FakeCheck),
 					new(dbfakes.FakeCheck),
 					new(dbfakes.FakeCheck),

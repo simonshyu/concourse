@@ -15,7 +15,6 @@ import (
 type CheckStatus string
 
 const (
-	CheckStatusPending   CheckStatus = "pending"
 	CheckStatusStarted   CheckStatus = "started"
 	CheckStatusSucceeded CheckStatus = "succeeded"
 	CheckStatusErrored   CheckStatus = "errored"
@@ -95,8 +94,7 @@ func (c *check) Start() error {
 		Set("status", CheckStatusStarted).
 		Set("start_time", now).
 		Where(sq.Eq{
-			"id":     c.id,
-			"status": "pending",
+			"id": c.id,
 		}).
 		RunWith(tx).
 		Exec()
@@ -125,6 +123,14 @@ func (c *check) Start() error {
 }
 
 func (c *check) Finish() error {
+	return c.finish(CheckStatusSucceeded, nil)
+}
+
+func (c *check) FinishWithError(err error) error {
+	return c.finish(CheckStatusErrored, err)
+}
+
+func (c *check) finish(status CheckStatus, checkError error) error {
 	tx, err := c.conn.Begin()
 	if err != nil {
 		return err
@@ -134,22 +140,11 @@ func (c *check) Finish() error {
 
 	now := time.Now()
 	_, err = psql.Update("checks").
-		Set("status", CheckStatusSucceeded).
+		Set("status", status).
 		Set("end_time", now).
-		// Set("plan", nil).
-		// Set("nonce", nil).
-		Where(sq.Eq{"id": c.id}).
-		RunWith(tx).
-		Exec()
-	if err != nil {
-		return err
-	}
-
-	// TODO update resource config scope
-	_, err = psql.Update("resource_config_scopes").
-		Set("last_check_end_time", now).
+		Set("check_error", checkError).
 		Where(sq.Eq{
-			"id": c.resourceConfigScopeID,
+			"id": c.id,
 		}).
 		RunWith(tx).
 		Exec()
@@ -157,28 +152,12 @@ func (c *check) Finish() error {
 		return err
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *check) FinishWithError(err error) error {
-	tx, err := c.conn.Begin()
-	if err != nil {
-		return err
-	}
-
-	defer Rollback(tx)
-
-	_, err = psql.Update("checks").
-		Set("status", CheckStatusErrored).
-		Set("end_time", sq.Expr("now()")).
-		Set("plan", nil).
-		Set("nonce", nil).
-		Where(sq.Eq{"id": c.id}).
+	_, err = psql.Update("resource_config_scopes").
+		Set("last_check_end_time", now).
+		Set("check_error", checkError).
+		Where(sq.Eq{
+			"id": c.resourceConfigScopeID,
+		}).
 		RunWith(tx).
 		Exec()
 	if err != nil {

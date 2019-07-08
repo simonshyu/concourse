@@ -12,28 +12,28 @@ func NewChecker(
 	logger lager.Logger,
 	checkFactory db.CheckFactory,
 	engine engine.Engine,
-) *Checker {
-	return &Checker{
+) *checker {
+	return &checker{
 		logger:       logger,
 		checkFactory: checkFactory,
 		engine:       engine,
 	}
 }
 
-type Checker struct {
+type checker struct {
 	logger lager.Logger
 
 	checkFactory db.CheckFactory
 	engine       engine.Engine
 }
 
-func (c *Checker) Run(ctx context.Context) error {
+func (c *checker) Run(ctx context.Context) error {
 	cLog := c.logger.Session("check")
 
 	cLog.Debug("start")
 	defer cLog.Debug("done")
 
-	checks, err := c.checkFactory.PendingChecks()
+	checks, err := c.checkFactory.StartedChecks()
 	if err != nil {
 		c.logger.Error("failed-to-fetch-resource-checks", err)
 		return err

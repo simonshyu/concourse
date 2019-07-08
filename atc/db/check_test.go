@@ -46,7 +46,7 @@ var _ = Describe("Check", func() {
 
 	Describe("Check", func() {
 		It("succeeds", func() {
-			Expect(check.Status()).To(Equal(db.CheckStatusPending))
+			Expect(check.Status()).To(Equal(db.CheckStatusStarted))
 			Expect(check.ResourceConfigScopeID()).To(Equal(resourceConfigScope.ID()))
 			Expect(check.ResourceConfigID()).To(Equal(resourceConfigScope.ResourceConfig().ID()))
 			Expect(check.BaseResourceTypeID()).To(Equal(resourceConfigScope.ResourceConfig().OriginBaseResourceType().ID))

@@ -52,7 +52,7 @@ var _ = Describe("CheckFactory", func() {
 
 		It("returns the resource check", func() {
 			Expect(check.ID()).To(Equal(1))
-			Expect(check.Status()).To(Equal(db.CheckStatusPending))
+			Expect(check.Status()).To(Equal(db.CheckStatusStarted))
 			Expect(check.Schema()).To(Equal("exec.v2"))
 			Expect(check.Plan().Check.Name).To(Equal("some-name"))
 			Expect(check.Plan().Check.Type).To(Equal("some-type"))
@@ -85,7 +85,7 @@ var _ = Describe("CheckFactory", func() {
 		)
 
 		JustBeforeEach(func() {
-			checks, err = checkFactory.PendingChecks()
+			checks, err = checkFactory.StartedChecks()
 			Expect(err).NotTo(HaveOccurred())
 		})
 

@@ -133,7 +133,7 @@ func (step *CheckStep) Run(ctx context.Context, state RunState) error {
 
 	checkable := step.resourceFactory.NewResourceForContainer(container)
 
-	versions, err := checkable.Check(deadline, step.plan.Source, *step.plan.FromVersion)
+	versions, err := checkable.Check(deadline, step.plan.Source, step.plan.FromVersion)
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			return fmt.Errorf("Timed out after %v while checking for new versions", timeout)
