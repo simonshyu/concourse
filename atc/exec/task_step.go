@@ -202,7 +202,7 @@ func (step *TaskStep) Run(ctx context.Context, state RunState) error {
 	events := make(chan string, 1)
 
 	go func(results chan worker.TaskResult) {
-		status, volumeMounts, err := step.workerClient.RunTaskStep(
+		results <- step.workerClient.RunTaskStep(
 			ctx,
 			logger,
 			owner,
@@ -214,13 +214,6 @@ func (step *TaskStep) Run(ctx context.Context, state RunState) error {
 			processSpec,
 			events,
 		)
-
-		results <- worker.TaskResult{
-			Status:       status,
-			VolumeMounts: volumeMounts,
-			Err:          err,
-		}
-
 	}(results)
 
 	for {

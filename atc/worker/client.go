@@ -32,7 +32,7 @@ type Client interface {
 		ImageFetcherSpec,
 		TaskProcessSpec,
 		chan string,
-	) (int, []VolumeMount, error)
+	) TaskResult
 }
 
 func NewClient(pool Pool, provider WorkerProvider) *client {
@@ -122,7 +122,7 @@ func (client *client) RunTaskStep(
 	imageSpec ImageFetcherSpec,
 	processSpec TaskProcessSpec,
 	events chan string,
-) (int, []VolumeMount, error) {
+) TaskResult {
 	chosenWorker, err := client.pool.FindOrChooseWorkerForContainer(
 		ctx,
 		logger,
@@ -132,7 +132,7 @@ func (client *client) RunTaskStep(
 		strategy,
 	)
 	if err != nil {
-		return -1, []VolumeMount{}, err
+		return TaskResult{- 1, []VolumeMount{}, err}
 	}
 
 	container, err := chosenWorker.FindOrCreateContainer(
@@ -146,7 +146,7 @@ func (client *client) RunTaskStep(
 	)
 
 	if err != nil {
-		return -1, []VolumeMount{}, err
+		return TaskResult{Status:- 1, VolumeMounts: []VolumeMount{}, Err: err}
 	}
 
 	// container already exited
@@ -156,10 +156,10 @@ func (client *client) RunTaskStep(
 
 		status, err := strconv.Atoi(exitStatusProp)
 		if err != nil {
-			return -1, []VolumeMount{}, err
+			return TaskResult{- 1, []VolumeMount{}, err}
 		}
 
-		return status, container.VolumeMounts(), nil
+		return TaskResult { Status: status, VolumeMounts: container.VolumeMounts(), Err: nil }
 	}
 
 	processIO := garden.ProcessIO{
@@ -194,7 +194,7 @@ func (client *client) RunTaskStep(
 		)
 
 		if err != nil {
-			return -1, []VolumeMount{}, err
+			return TaskResult{Status: -1, VolumeMounts: []VolumeMount{}, Err: err}
 		}
 	}
 
@@ -218,18 +218,18 @@ func (client *client) RunTaskStep(
 
 		<-exited
 
-		return -1, container.VolumeMounts(), ctx.Err()
+		return TaskResult{ Status: processStatus, VolumeMounts: container.VolumeMounts(), Err: ctx.Err() }
 
 	case <-exited:
 		if processErr != nil {
-			return processStatus, []VolumeMount{}, processErr
+			return TaskResult{ Status: processStatus, VolumeMounts: []VolumeMount{}, Err: processErr }
 		}
 
 		err = container.SetProperty(taskExitStatusPropertyName, fmt.Sprintf("%d", processStatus))
 		if err != nil {
-			return processStatus, []VolumeMount{}, err
+			return TaskResult { Status: processStatus, VolumeMounts: []VolumeMount{}, Err: err }
 		}
 
-		return processStatus, container.VolumeMounts(), nil
+		return TaskResult{ Status: processStatus, VolumeMounts: container.VolumeMounts(), Err: nil }
 	}
 }

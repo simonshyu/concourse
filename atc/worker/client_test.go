@@ -229,7 +229,7 @@ var _ = Describe("Client", func() {
 			cancel               func()
 		)
 		JustBeforeEach(func() {
-			status, volumeMounts, err = client.RunTaskStep(
+			taskResult := client.RunTaskStep(
 				ctx,
 				logger,
 				fakeContainerOwner,
@@ -241,6 +241,9 @@ var _ = Describe("Client", func() {
 				fakeTaskProcessSpec,
 				eventChan,
 			)
+			status = taskResult.Status
+			volumeMounts = taskResult.VolumeMounts
+			err = taskResult.Err
 		})
 
 		BeforeEach(func() {
