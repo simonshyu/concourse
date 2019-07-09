@@ -23,6 +23,7 @@ import Build.StepTree.StepTree
 import Concourse
 import Concourse.BuildStatus
 import Dict
+import HoverState
 import Html exposing (Html)
 import Html.Attributes exposing (class)
 import Message.Effects exposing (Effect(..))
@@ -333,26 +334,27 @@ setStepFinish mtime tree =
     StepTree.map (\step -> { step | finish = mtime }) tree
 
 
-view : Session -> OutputModel -> Html Message
-view session { steps, state } =
-    Html.div [ class "steps" ] [ viewStepTree session steps state ]
+view : Time.Zone -> HoverState.HoverState -> OutputModel -> Html Message
+view timeZone hovered { steps, state } =
+    Html.div [ class "steps" ] [ viewStepTree timeZone hovered steps state ]
 
 
 viewStepTree :
-    Session
+    Time.Zone
+    -> HoverState.HoverState
     -> Maybe StepTreeModel
     -> OutputState
     -> Html Message
-viewStepTree session steps state =
+viewStepTree timeZone hovered steps state =
     case ( state, steps ) of
         ( StepsLoading, _ ) ->
             LoadingIndicator.view
 
         ( StepsLiveUpdating, Just root ) ->
-            Build.StepTree.StepTree.view session root
+            Build.StepTree.StepTree.view timeZone hovered root
 
         ( StepsComplete, Just root ) ->
-            Build.StepTree.StepTree.view session root
+            Build.StepTree.StepTree.view timeZone hovered root
 
         ( _, Nothing ) ->
             Html.div [] []

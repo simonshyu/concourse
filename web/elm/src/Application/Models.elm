@@ -11,6 +11,7 @@ type alias Session =
     SideBar.Model
         { userState : UserState
         , hovered : HoverState.HoverState
+        , buildPageHovered : HoverState.HoverState
         , clusterName : String
         , turbulenceImgSrc : String
         , notFoundImgSrc : String

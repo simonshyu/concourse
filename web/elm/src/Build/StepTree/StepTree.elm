@@ -415,46 +415,48 @@ updateTooltip { hovered } { hoveredCounter } model =
 
 
 view :
-    Session
+    Time.Zone
+    -> HoverState.HoverState
     -> StepTreeModel
     -> Html Message
-view session model =
-    viewTree session model model.tree
+view timeZone hovered model =
+    viewTree timeZone hovered model model.tree
 
 
 viewTree :
-    Session
+    Time.Zone
+    -> HoverState.HoverState
     -> StepTreeModel
     -> StepTree
     -> Html Message
-viewTree session model tree =
+viewTree timeZone hovered model tree =
     case tree of
         Task step ->
-            viewStep model session step StepHeaderTask
+            viewStep model timeZone hovered step StepHeaderTask
 
         ArtifactInput step ->
-            viewStep model session step (StepHeaderGet False)
+            viewStep model timeZone hovered step (StepHeaderGet False)
 
         Get step ->
-            viewStep model session step (StepHeaderGet step.firstOccurrence)
+            viewStep model timeZone hovered step (StepHeaderGet step.firstOccurrence)
 
         ArtifactOutput step ->
-            viewStep model session step StepHeaderPut
+            viewStep model timeZone hovered step StepHeaderPut
 
         Put step ->
-            viewStep model session step StepHeaderPut
+            viewStep model timeZone hovered step StepHeaderPut
 
         Try step ->
-            viewTree session model step
+            viewTree timeZone hovered model step
 
         Retry id tab _ steps ->
             Html.div [ class "retry" ]
                 [ Html.ul
                     (class "retry-tabs" :: Styles.retryTabList)
-                    (Array.toList <| Array.indexedMap (viewTab session id tab) steps)
+                    (Array.toList <| Array.indexedMap (viewTab timeZone hovered id tab) steps)
                 , case Array.get (tab - 1) steps of
                     Just step ->
-                        viewTree session model step
+                        viewTree timeZone hovered model step
 
                     Nothing ->
                         -- impossible (bogus tab selected)
@@ -462,44 +464,45 @@ viewTree session model tree =
                 ]
 
         Timeout step ->
-            viewTree session model step
+            viewTree timeZone hovered model step
 
         Aggregate steps ->
             Html.div [ class "aggregate" ]
-                (Array.toList <| Array.map (viewSeq session model) steps)
+                (Array.toList <| Array.map (viewSeq timeZone hovered model) steps)
 
         InParallel steps ->
             Html.div [ class "parallel" ]
-                (Array.toList <| Array.map (viewSeq session model) steps)
+                (Array.toList <| Array.map (viewSeq timeZone hovered model) steps)
 
         Do steps ->
             Html.div [ class "do" ]
-                (Array.toList <| Array.map (viewSeq session model) steps)
+                (Array.toList <| Array.map (viewSeq timeZone hovered model) steps)
 
         OnSuccess { step, hook } ->
-            viewHooked session "success" model step hook
+            viewHooked timeZone hovered "success" model step hook
 
         OnFailure { step, hook } ->
-            viewHooked session "failure" model step hook
+            viewHooked timeZone hovered "failure" model step hook
 
         OnAbort { step, hook } ->
-            viewHooked session "abort" model step hook
+            viewHooked timeZone hovered "abort" model step hook
 
         OnError { step, hook } ->
-            viewHooked session "error" model step hook
+            viewHooked timeZone hovered "error" model step hook
 
         Ensure { step, hook } ->
-            viewHooked session "ensure" model step hook
+            viewHooked timeZone hovered "ensure" model step hook
 
 
 viewTab :
-    Session
+    Time.Zone 
+    -> HoverState.HoverState
     -> StepID
     -> Int
     -> Int
     -> StepTree
     -> Html Message
-viewTab { hovered } id currentTab idx step =
+viewTab timeZone hovered id currentTab idx step =
     let
         tab =
             idx + 1
@@ -522,17 +525,17 @@ viewTab { hovered } id currentTab idx step =
         [ Html.text (String.fromInt tab) ]
 
 
-viewSeq : Session -> StepTreeModel -> StepTree -> Html Message
-viewSeq session model tree =
-    Html.div [ class "seq" ] [ viewTree session model tree ]
+viewSeq : Time.Zone -> HoverState.HoverState -> StepTreeModel -> StepTree -> Html Message
+viewSeq timeZone hovered model tree =
+    Html.div [ class "seq" ] [ viewTree timeZone hovered model tree ]
 
 
-viewHooked : Session -> String -> StepTreeModel -> StepTree -> StepTree -> Html Message
-viewHooked session name model step hook =
+viewHooked : Time.Zone -> HoverState.HoverState -> String -> StepTreeModel -> StepTree -> StepTree -> Html Message
+viewHooked timeZone hovered name model step hook =
     Html.div [ class "hooked" ]
-        [ Html.div [ class "step" ] [ viewTree session model step ]
+        [ Html.div [ class "step" ] [ viewTree timeZone hovered model step ]
         , Html.div [ class "children" ]
-            [ Html.div [ class ("hook hook-" ++ name) ] [ viewTree session model hook ]
+            [ Html.div [ class ("hook hook-" ++ name) ] [ viewTree timeZone hovered model hook ]
             ]
         ]
 
@@ -542,8 +545,8 @@ isActive state =
     state /= StepStatePending && state /= StepStateCancelled
 
 
-viewStep : StepTreeModel -> Session -> Step -> StepHeaderType -> Html Message
-viewStep model session { id, name, log, state, error, expanded, version, metadata, timestamps, initialize, start, finish } headerType =
+viewStep : StepTreeModel -> Time.Zone -> HoverState.HoverState -> Step -> StepHeaderType -> Html Message
+viewStep model timeZone hovered { id, name, log, state, error, expanded, version, metadata, timestamps, initialize, start, finish } headerType =
     Html.div
         [ classList
             [ ( "build-step", True )
@@ -575,7 +578,7 @@ viewStep model session { id, name, log, state, error, expanded, version, metadat
                 ]
                 [ viewMetadata metadata
                 , Html.pre [ class "timestamped-logs" ] <|
-                    viewLogs log timestamps model.highlight session.timeZone id
+                    viewLogs log timestamps model.highlight timeZone id
                 , case error of
                     Nothing ->
                         Html.span [] []

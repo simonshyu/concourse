@@ -952,12 +952,7 @@ viewBuildPage session model =
                 , style "overflow" "hidden"
                 ]
                 [ viewBuildHeader session model currentBuild.build
-                , body
-                    session
-                    { currentBuild = currentBuild
-                    , authorized = model.authorized
-                    , showHelp = model.showHelp
-                    }
+                , body session model
                 ]
 
         _ ->
@@ -966,13 +961,9 @@ viewBuildPage session model =
 
 body :
     Session
-    ->
-        { currentBuild : CurrentBuild
-        , authorized : Bool
-        , showHelp : Bool
-        }
+    -> Model
     -> Html Message
-body session { currentBuild, authorized, showHelp } =
+body session model =
     Html.div
         ([ class "scrollable-body build-body"
          , id bodyId
@@ -982,12 +973,19 @@ body session { currentBuild, authorized, showHelp } =
             ++ Styles.body
         )
     <|
-        if authorized then
-            [ viewBuildPrep currentBuild.prep
-            , Html.Lazy.lazy2 viewBuildOutput session currentBuild.output
-            , keyboardHelp showHelp
+        if model.authorized then
+            [ viewBuildPrep model.currentBuild
+            , Html.Lazy.lazy3
+                viewBuildOutput
+                session.timeZone
+                session.buildPageHovered
+                model.currentBuild
+            , keyboardHelp model.showHelp
             ]
-                ++ tombstone session.timeZone currentBuild
+                ++ (model.currentBuild
+                        |> RemoteData.map (tombstone session.timeZone)
+                        |> RemoteData.withDefault []
+                   )
 
         else
             [ NotAuthorized.view ]
@@ -1145,11 +1143,19 @@ mmDDYY =
         ]
 
 
-viewBuildOutput : Session -> CurrentOutput -> Html Message
-viewBuildOutput session output =
-    case output of
+viewBuildOutput :
+    Time.Zone
+    -> HoverState.HoverState
+    -> RemoteData.WebData CurrentBuild
+    -> Html Message
+viewBuildOutput timeZone hovered currentBuild =
+    case
+        currentBuild
+            |> RemoteData.map .output
+            |> RemoteData.withDefault Empty
+    of
         Output o ->
-            Build.Output.Output.view session o
+            Build.Output.Output.view timeZone hovered o
 
         Cancelled ->
             Html.div
@@ -1160,9 +1166,13 @@ viewBuildOutput session output =
             Html.div [] []
 
 
-viewBuildPrep : Maybe Concourse.BuildPrep -> Html Message
-viewBuildPrep buildPrep =
-    case buildPrep of
+viewBuildPrep : RemoteData.WebData CurrentBuild -> Html Message
+viewBuildPrep currentBuild =
+    case
+        currentBuild
+            |> RemoteData.toMaybe
+            |> Maybe.andThen .prep
+    of
         Just prep ->
             Html.div [ class "build-step" ]
                 [ Html.div

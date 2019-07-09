@@ -482,7 +482,7 @@ viewBuildOutput : Session -> Build.Models.CurrentOutput -> Html Message
 viewBuildOutput session output =
     case output of
         Output o ->
-            Build.Output.Output.view session o
+            Build.Output.Output.view session.timeZone session.hovered o
 
         Cancelled ->
             Html.div
@@ -651,6 +651,7 @@ sampleSession =
     , csrfToken = ""
     , expandedTeams = Set.empty
     , hovered = HoverState.NoHover
+    , buildPageHovered = HoverState.NoHover
     , isSideBarOpen = False
     , notFoundImgSrc = ""
     , pipelineRunningKeyframes = ""

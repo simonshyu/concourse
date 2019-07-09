@@ -18,7 +18,7 @@ import HoverState
 import Http
 import Message.Callback exposing (Callback(..))
 import Message.Effects as Effects exposing (Effect(..))
-import Message.Message as Message
+import Message.Message as Message exposing (DomID(..))
 import Message.Subscription
     exposing
         ( Delivery(..)
@@ -63,6 +63,7 @@ init flags url =
         session =
             { userState = UserStateUnknown
             , hovered = HoverState.NoHover
+            , buildPageHovered = HoverState.NoHover
             , clusterName = ""
             , turbulenceImgSrc = flags.turbulenceImgSrc
             , notFoundImgSrc = flags.notFoundImgSrc
@@ -308,7 +309,15 @@ update msg model =
                             HoverState.NoHover
 
                 ( newSession, sideBarEffects ) =
-                    { session | hovered = newHovered }
+                    { session
+                        | hovered = newHovered
+                        , buildPageHovered =
+                            if projectOntoBuildPage newHovered /= session.buildPageHovered then
+                                projectOntoBuildPage newHovered
+
+                            else
+                                session.buildPageHovered
+                    }
                         |> SideBar.update (Message.Hover hovered)
 
                 ( subModel, subEffects ) =
@@ -338,6 +347,50 @@ update msg model =
 
         DeliveryReceived delivery ->
             handleDelivery delivery model
+
+
+projectOntoBuildPage : HoverState.HoverState -> HoverState.HoverState
+projectOntoBuildPage hoverState =
+    case hoverState of
+        HoverState.NoHover ->
+            HoverState.NoHover
+
+        HoverState.Hovered domID ->
+            if isOnBuildOutput domID then
+                hoverState
+
+            else
+                HoverState.NoHover
+
+        HoverState.TooltipPending domID ->
+            if isOnBuildOutput domID then
+                hoverState
+
+            else
+                HoverState.NoHover
+
+        HoverState.Tooltip domID _ ->
+            if isOnBuildOutput domID then
+                hoverState
+
+            else
+                HoverState.NoHover
+
+
+isOnBuildOutput : DomID -> Bool
+isOnBuildOutput domID =
+    case domID of
+        FirstOccurrenceIcon _ ->
+            True
+
+        StepState _ ->
+            True
+
+        StepTab _ _ ->
+            True
+
+        _ ->
+            False
 
 
 handleDelivery : Delivery -> Model -> ( Model, List Effect )
