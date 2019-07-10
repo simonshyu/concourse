@@ -186,7 +186,7 @@ var _ = Describe("ResourceType", func() {
 			})
 
 			It("returns the resource types tree given type name", func() {
-				tree := resourceTypes.BuildTree("some-custom-type")
+				tree := resourceTypes.Filter("some-custom-type")
 				Expect(len(tree)).To(Equal(3))
 				Expect(tree[0].Name()).To(Equal("some-other-type"))
 				Expect(tree[0].Type()).To(Equal("registry-image-ng"))

@@ -29,7 +29,7 @@ var _ = Describe("Scanner", func() {
 		fakeSecrets      *credsfakes.FakeSecrets
 
 		logger  *lagertest.TestLogger
-		scanner Scanner
+		scanner lidar.Scanner
 	)
 
 	BeforeEach(func() {

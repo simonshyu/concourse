@@ -12,24 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:generate counterfeiter . Checkable
+//go:generate counterfeiter . Scanner
 
-type Checkable interface {
-	Name() string
-	Type() string
-	PipelineID() int
-	Source() atc.Source
-	Tags() atc.Tags
-	CheckEvery() string
-	CheckTimeout() string
-	LastCheckEndTime() time.Time
-
-	SetResourceConfig(
-		atc.Source,
-		atc.VersionedResourceTypes,
-	) (db.ResourceConfigScope, error)
-
-	SetCheckSetupError(error) error
+type Scanner interface {
+	Run(context.Context) error
 }
 
 func NewScanner(
@@ -39,7 +25,7 @@ func NewScanner(
 	secrets creds.Secrets,
 	defaultCheckTimeout time.Duration,
 	defaultCheckInterval time.Duration,
-) *scanner {
+) Scanner {
 	return &scanner{
 		logger:               logger,
 		checkFactory:         checkFactory,
@@ -91,7 +77,16 @@ func (s *scanner) Run(ctx context.Context) error {
 
 	for _, resource := range resources {
 		waitGroup.Add(1)
-		go s.scan(waitGroup, resource, resourceTypes)
+
+		go func(resource db.Resource, resourceTypes db.ResourceTypes) {
+			defer waitGroup.Done()
+
+			if err := s.check(resource, resourceTypes); err != nil {
+				s.logger.Error("failed-to-create-check", err)
+				s.setCheckError(s.logger, resource, err)
+			}
+
+		}(resource, resourceTypes)
 	}
 
 	waitGroup.Wait()
@@ -99,30 +94,15 @@ func (s *scanner) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *scanner) scan(waitGroup *sync.WaitGroup, resource db.Resource, resourceTypes db.ResourceTypes) {
-	defer waitGroup.Done()
-
-	variables := creds.NewVariables(
-		s.secrets,
-		resource.TeamName(),
-		resource.PipelineName(),
-	)
-
-	filteredTypes := resourceTypes.BuildTree(resource.Type())
-
-	if err := s.tryCreateCheck(resource, variables, filteredTypes); err != nil {
-		s.logger.Error("failed-to-create-check", err)
-		s.setCheckError(s.logger, resource, err)
-	}
-}
-
-func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables, resourceTypes db.ResourceTypes) error {
+func (s *scanner) check(checkable db.Checkable, resourceTypes db.ResourceTypes) error {
 
 	var err error
 
-	parentType, found := s.parentType(checkable, resourceTypes)
+	filteredTypes := resourceTypes.Filter(checkable.Type())
+
+	parentType, found := s.parentType(checkable, filteredTypes)
 	if found {
-		if err := s.tryCreateCheck(parentType, variables, resourceTypes); err != nil {
+		if err := s.check(parentType, filteredTypes); err != nil {
 			s.logger.Error("failed-to-create-type-check", err)
 			s.setCheckError(s.logger, parentType, err)
 			return errors.Wrapf(err, "parent type '%v' error", parentType.Name())
@@ -137,6 +117,7 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 	if to := checkable.CheckTimeout(); to != "" {
 		timeout, err = time.ParseDuration(to)
 		if err != nil {
+			s.logger.Error("failed-to-parse-check-timeout", err)
 			return err
 		}
 	}
@@ -145,6 +126,7 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 	if every := checkable.CheckEvery(); every != "" {
 		interval, err = time.ParseDuration(every)
 		if err != nil {
+			s.logger.Error("failed-to-parse-check-every", err)
 			return err
 		}
 	}
@@ -156,13 +138,19 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 		return nil
 	}
 
+	variables := creds.NewVariables(
+		s.secrets,
+		checkable.TeamName(),
+		checkable.PipelineName(),
+	)
+
 	source, err := creds.NewSource(variables, checkable.Source()).Evaluate()
 	if err != nil {
 		s.logger.Error("failed-to-evaluate-source", err)
 		return err
 	}
 
-	versionedResourceTypes, err := creds.NewVersionedResourceTypes(variables, resourceTypes.Deserialize()).Evaluate()
+	versionedResourceTypes, err := creds.NewVersionedResourceTypes(variables, filteredTypes.Deserialize()).Evaluate()
 	if err != nil {
 		s.logger.Error("failed-to-evaluate-resource-types", err)
 		return err
@@ -215,7 +203,7 @@ func (s *scanner) tryCreateCheck(checkable Checkable, variables creds.Variables,
 	return nil
 }
 
-func (s *scanner) parentType(checkable Checkable, resourceTypes []db.ResourceType) (db.ResourceType, bool) {
+func (s *scanner) parentType(checkable db.Checkable, resourceTypes []db.ResourceType) (db.ResourceType, bool) {
 	for _, resourceType := range resourceTypes {
 		if resourceType.Name() == checkable.Type() && resourceType.PipelineID() == checkable.PipelineID() {
 			return resourceType, true
@@ -224,7 +212,7 @@ func (s *scanner) parentType(checkable Checkable, resourceTypes []db.ResourceTyp
 	return nil, false
 }
 
-func (s *scanner) setCheckError(logger lager.Logger, checkable Checkable, err error) {
+func (s *scanner) setCheckError(logger lager.Logger, checkable db.Checkable, err error) {
 	setErr := checkable.SetCheckSetupError(err)
 	if setErr != nil {
 		logger.Error("failed-to-set-check-error", setErr)

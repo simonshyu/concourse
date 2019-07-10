@@ -110,6 +110,16 @@ type FakeResourceType struct {
 	pipelineIDReturnsOnCall map[int]struct {
 		result1 int
 	}
+	PipelineNameStub        func() string
+	pipelineNameMutex       sync.RWMutex
+	pipelineNameArgsForCall []struct {
+	}
+	pipelineNameReturns struct {
+		result1 string
+	}
+	pipelineNameReturnsOnCall map[int]struct {
+		result1 string
+	}
 	PrivilegedStub        func() bool
 	privilegedMutex       sync.RWMutex
 	privilegedArgsForCall []struct {
@@ -176,6 +186,26 @@ type FakeResourceType struct {
 	}
 	tagsReturnsOnCall map[int]struct {
 		result1 atc.Tags
+	}
+	TeamIDStub        func() int
+	teamIDMutex       sync.RWMutex
+	teamIDArgsForCall []struct {
+	}
+	teamIDReturns struct {
+		result1 int
+	}
+	teamIDReturnsOnCall map[int]struct {
+		result1 int
+	}
+	TeamNameStub        func() string
+	teamNameMutex       sync.RWMutex
+	teamNameArgsForCall []struct {
+	}
+	teamNameReturns struct {
+		result1 string
+	}
+	teamNameReturnsOnCall map[int]struct {
+		result1 string
 	}
 	TypeStub        func() string
 	typeMutex       sync.RWMutex
@@ -731,6 +761,58 @@ func (fake *FakeResourceType) PipelineIDReturnsOnCall(i int, result1 int) {
 	}{result1}
 }
 
+func (fake *FakeResourceType) PipelineName() string {
+	fake.pipelineNameMutex.Lock()
+	ret, specificReturn := fake.pipelineNameReturnsOnCall[len(fake.pipelineNameArgsForCall)]
+	fake.pipelineNameArgsForCall = append(fake.pipelineNameArgsForCall, struct {
+	}{})
+	fake.recordInvocation("PipelineName", []interface{}{})
+	fake.pipelineNameMutex.Unlock()
+	if fake.PipelineNameStub != nil {
+		return fake.PipelineNameStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.pipelineNameReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) PipelineNameCallCount() int {
+	fake.pipelineNameMutex.RLock()
+	defer fake.pipelineNameMutex.RUnlock()
+	return len(fake.pipelineNameArgsForCall)
+}
+
+func (fake *FakeResourceType) PipelineNameCalls(stub func() string) {
+	fake.pipelineNameMutex.Lock()
+	defer fake.pipelineNameMutex.Unlock()
+	fake.PipelineNameStub = stub
+}
+
+func (fake *FakeResourceType) PipelineNameReturns(result1 string) {
+	fake.pipelineNameMutex.Lock()
+	defer fake.pipelineNameMutex.Unlock()
+	fake.PipelineNameStub = nil
+	fake.pipelineNameReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeResourceType) PipelineNameReturnsOnCall(i int, result1 string) {
+	fake.pipelineNameMutex.Lock()
+	defer fake.pipelineNameMutex.Unlock()
+	fake.PipelineNameStub = nil
+	if fake.pipelineNameReturnsOnCall == nil {
+		fake.pipelineNameReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.pipelineNameReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeResourceType) Privileged() bool {
 	fake.privilegedMutex.Lock()
 	ret, specificReturn := fake.privilegedReturnsOnCall[len(fake.privilegedArgsForCall)]
@@ -1066,6 +1148,110 @@ func (fake *FakeResourceType) TagsReturnsOnCall(i int, result1 atc.Tags) {
 	}{result1}
 }
 
+func (fake *FakeResourceType) TeamID() int {
+	fake.teamIDMutex.Lock()
+	ret, specificReturn := fake.teamIDReturnsOnCall[len(fake.teamIDArgsForCall)]
+	fake.teamIDArgsForCall = append(fake.teamIDArgsForCall, struct {
+	}{})
+	fake.recordInvocation("TeamID", []interface{}{})
+	fake.teamIDMutex.Unlock()
+	if fake.TeamIDStub != nil {
+		return fake.TeamIDStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.teamIDReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) TeamIDCallCount() int {
+	fake.teamIDMutex.RLock()
+	defer fake.teamIDMutex.RUnlock()
+	return len(fake.teamIDArgsForCall)
+}
+
+func (fake *FakeResourceType) TeamIDCalls(stub func() int) {
+	fake.teamIDMutex.Lock()
+	defer fake.teamIDMutex.Unlock()
+	fake.TeamIDStub = stub
+}
+
+func (fake *FakeResourceType) TeamIDReturns(result1 int) {
+	fake.teamIDMutex.Lock()
+	defer fake.teamIDMutex.Unlock()
+	fake.TeamIDStub = nil
+	fake.teamIDReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeResourceType) TeamIDReturnsOnCall(i int, result1 int) {
+	fake.teamIDMutex.Lock()
+	defer fake.teamIDMutex.Unlock()
+	fake.TeamIDStub = nil
+	if fake.teamIDReturnsOnCall == nil {
+		fake.teamIDReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.teamIDReturnsOnCall[i] = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeResourceType) TeamName() string {
+	fake.teamNameMutex.Lock()
+	ret, specificReturn := fake.teamNameReturnsOnCall[len(fake.teamNameArgsForCall)]
+	fake.teamNameArgsForCall = append(fake.teamNameArgsForCall, struct {
+	}{})
+	fake.recordInvocation("TeamName", []interface{}{})
+	fake.teamNameMutex.Unlock()
+	if fake.TeamNameStub != nil {
+		return fake.TeamNameStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.teamNameReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeResourceType) TeamNameCallCount() int {
+	fake.teamNameMutex.RLock()
+	defer fake.teamNameMutex.RUnlock()
+	return len(fake.teamNameArgsForCall)
+}
+
+func (fake *FakeResourceType) TeamNameCalls(stub func() string) {
+	fake.teamNameMutex.Lock()
+	defer fake.teamNameMutex.Unlock()
+	fake.TeamNameStub = stub
+}
+
+func (fake *FakeResourceType) TeamNameReturns(result1 string) {
+	fake.teamNameMutex.Lock()
+	defer fake.teamNameMutex.Unlock()
+	fake.TeamNameStub = nil
+	fake.teamNameReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeResourceType) TeamNameReturnsOnCall(i int, result1 string) {
+	fake.teamNameMutex.Lock()
+	defer fake.teamNameMutex.Unlock()
+	fake.TeamNameStub = nil
+	if fake.teamNameReturnsOnCall == nil {
+		fake.teamNameReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.teamNameReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeResourceType) Type() string {
 	fake.typeMutex.Lock()
 	ret, specificReturn := fake.typeReturnsOnCall[len(fake.typeArgsForCall)]
@@ -1245,6 +1431,8 @@ func (fake *FakeResourceType) Invocations() map[string][][]interface{} {
 	defer fake.paramsMutex.RUnlock()
 	fake.pipelineIDMutex.RLock()
 	defer fake.pipelineIDMutex.RUnlock()
+	fake.pipelineNameMutex.RLock()
+	defer fake.pipelineNameMutex.RUnlock()
 	fake.privilegedMutex.RLock()
 	defer fake.privilegedMutex.RUnlock()
 	fake.reloadMutex.RLock()
@@ -1257,6 +1445,10 @@ func (fake *FakeResourceType) Invocations() map[string][][]interface{} {
 	defer fake.sourceMutex.RUnlock()
 	fake.tagsMutex.RLock()
 	defer fake.tagsMutex.RUnlock()
+	fake.teamIDMutex.RLock()
+	defer fake.teamIDMutex.RUnlock()
+	fake.teamNameMutex.RLock()
+	defer fake.teamNameMutex.RUnlock()
 	fake.typeMutex.RLock()
 	defer fake.typeMutex.RUnlock()
 	fake.uniqueVersionHistoryMutex.RLock()

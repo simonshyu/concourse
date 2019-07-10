@@ -26,6 +26,9 @@ func (e ResourceTypeNotFoundError) Error() string {
 type ResourceType interface {
 	ID() int
 	PipelineID() int
+	PipelineName() string
+	TeamID() int
+	TeamName() string
 	Name() string
 	Type() string
 	Privileged() bool
@@ -50,12 +53,12 @@ type ResourceType interface {
 
 type ResourceTypes []ResourceType
 
-func (resourceTypes ResourceTypes) BuildTree(resourceType string) ResourceTypes {
+func (resourceTypes ResourceTypes) Filter(resourceType string) ResourceTypes {
 	var result ResourceTypes
 
 	for _, t := range resourceTypes {
 		if t.Name() == resourceType {
-			result = append(resourceTypes.BuildTree(t.Type()), t)
+			result = append(resourceTypes.Filter(t.Type()), t)
 		}
 	}
 
@@ -112,11 +115,16 @@ var resourceTypesQuery = psql.Select(
 	"rcv.version",
 	"r.nonce",
 	"r.check_error",
+	"p.name",
+	"t.id",
+	"t.name",
 	"ro.check_error",
 	"ro.last_check_start_time",
 	"ro.last_check_end_time",
 ).
 	From("resource_types r").
+	Join("pipelines p ON p.id = r.pipeline_id").
+	Join("teams t ON t.id = p.team_id").
 	LeftJoin("resource_configs c ON c.id = r.resource_config_id").
 	LeftJoin("resource_config_scopes ro ON ro.resource_config_id = c.id").
 	LeftJoin(`LATERAL (
@@ -131,6 +139,9 @@ var resourceTypesQuery = psql.Select(
 type resourceType struct {
 	id                   int
 	pipelineID           int
+	pipelineName         string
+	teamID               int
+	teamName             string
 	name                 string
 	type_                string
 	privileged           bool
@@ -151,6 +162,9 @@ type resourceType struct {
 
 func (t *resourceType) ID() int                       { return t.id }
 func (t *resourceType) PipelineID() int               { return t.pipelineID }
+func (t *resourceType) PipelineName() string          { return t.pipelineName }
+func (t *resourceType) TeamID() int                   { return t.teamID }
+func (t *resourceType) TeamName() string              { return t.teamName }
 func (t *resourceType) Name() string                  { return t.name }
 func (t *resourceType) Type() string                  { return t.type_ }
 func (t *resourceType) Privileged() bool              { return t.privileged }
@@ -251,7 +265,7 @@ func scanResourceType(t *resourceType, row scannable) error {
 		lastCheckStartTime, lastCheckEndTime  pq.NullTime
 	)
 
-	err := row.Scan(&t.id, &t.pipelineID, &t.name, &t.type_, &configJSON, &version, &nonce, &checkErr, &rcsCheckErr, &lastCheckStartTime, &lastCheckEndTime)
+	err := row.Scan(&t.id, &t.pipelineID, &t.name, &t.type_, &configJSON, &version, &nonce, &checkErr, &t.pipelineName, &t.teamID, &t.teamName, &rcsCheckErr, &lastCheckStartTime, &lastCheckEndTime)
 	if err != nil {
 		return err
 	}
