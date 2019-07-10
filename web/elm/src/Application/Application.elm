@@ -324,7 +324,11 @@ update msg model =
                     ( model.subModel, [] )
                         |> SubPage.update model.session (Message.Hover hovered)
             in
-            ( { model | subModel = subModel, session = newSession }
+            ( if model.subModel /= subModel then
+                { model | subModel = subModel, session = newSession }
+
+              else
+                { model | session = newSession }
             , subEffects ++ sideBarEffects
             )
 

@@ -62,10 +62,21 @@ main =
                 (\_ -> dashboardPreviewView sampleJobs)
             , Benchmark.compare "Build.view"
                 "current"
-                (\_ -> Build.view sampleSession sampleModel)
+                (\_ -> multiUpdateBenchmark Build.view)
                 "old"
-                (\_ -> buildView sampleSession sampleModel)
+                (\_ -> multiUpdateBenchmark buildView)
             ]
+
+
+multiUpdateBenchmark viewFunc =
+    let
+        firstView =
+            viewFunc sampleSession sampleModel
+
+        afterUpdate =
+            viewFunc { sampleSession | userState = UserState.UserStateUnknown } sampleModel
+    in
+    ( firstView, afterUpdate )
 
 
 bodyId : String
@@ -733,7 +744,11 @@ position =
 log : Ansi.Log.Model
 log =
     { lineDiscipline = Ansi.Log.Cooked
-    , lines = Array.empty
+    , lines =
+        Array.repeat 1000
+            ( [ { text = "a line\n", style = ansiLogStyle } ]
+            , 0
+            )
     , position = position
     , savedPosition = Nothing
     , style = ansiLogStyle
