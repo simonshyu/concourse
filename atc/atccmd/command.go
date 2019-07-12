@@ -834,6 +834,7 @@ func (cmd *RunCommand) constructBackendMembers(
 				gc.NewResourceConfigCollector(dbResourceConfigFactory),
 				gc.NewResourceCacheCollector(dbResourceCacheLifecycle),
 				gc.NewArtifactCollector(dbArtifactLifecycle),
+				gc.NewCheckCollector(dbCheckLifecycle),
 				gc.NewVolumeCollector(
 					dbVolumeRepository,
 					cmd.GC.MissingGracePeriod,
