@@ -2,15 +2,6 @@
 
 You can work on the ATC without a full Concourse deployment. This is useful for testing changes to the web UI. The only limitation is that any builds you run will fail with the `no workers` error. To test your local changes with a full deployment, follow the instructions in the [concourse/concourse CONTRIBUTING.md](https://github.com/concourse/concourse/blob/master/CONTRIBUTING.md) instead.
 
-## Checkout the code
-You need to checkout the `concourse/concourse` repo. `atc` will be picked up as a submodule.
-
-```
-git clone https://github.com/concourse/concourse
-cd concourse
-git submodule update --init --recursive
-```
-
 ## Install development tools
 Concourse is built with Go and Elm. You also need Node and few modules. Assuming you're using a mac:
 
@@ -46,33 +37,8 @@ createdb atc
 
 ## Building and running the code
 
-To configure your `GOPATH` make sure you are in the root concourse checkout directory and run:
-
 ```
-source .envrc
+go run cmd/atc/*.go run --add-local-user test:test --main-team-local-user test
 ```
 
-NOTE: You need to be in the correct directory. Don't run `source .envrc` from a different location.
-
-Next, `cd` to the `atc` submodule, and checkout the `master` branch (the submodules have no develop branch):
-
-```
-cd src/github.com/concourse/atc
-git checkout master
-```
-
-To build the web code:
-
-```
-cd ./web
-make -B
-```
-
-Finally you can run the ATC:
-
-```
-cd ..
-go run cmd/atc/*.go --add-local-user test:test --main-team-local-user test
-```
-
-Concourse should be live at http://localhost:8080
+Concourse should be live at http://127.0.0.1:8080
