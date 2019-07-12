@@ -20,28 +20,6 @@ const (
 	CheckStatusErrored   CheckStatus = "errored"
 )
 
-//go:generate counterfeiter . Checkable
-
-type Checkable interface {
-	Name() string
-	TeamName() string
-	PipelineName() string
-	Type() string
-	PipelineID() int
-	Source() atc.Source
-	Tags() atc.Tags
-	CheckEvery() string
-	CheckTimeout() string
-	LastCheckEndTime() time.Time
-
-	SetResourceConfig(
-		atc.Source,
-		atc.VersionedResourceTypes,
-	) (ResourceConfigScope, error)
-
-	SetCheckSetupError(error) error
-}
-
 //go:generate counterfeiter . Check
 
 type Check interface {

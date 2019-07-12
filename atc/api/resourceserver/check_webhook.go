@@ -24,7 +24,7 @@ func (s *Server) CheckResourceWebHook(dbPipeline db.Pipeline) http.Handler {
 			return
 		}
 
-		pipelineResource, found, err := dbPipeline.Resource(resourceName)
+		dbResource, found, err := dbPipeline.Resource(resourceName)
 		if err != nil {
 			logger.Error("database-error", err, lager.Data{"resource-name": resourceName})
 			w.WriteHeader(http.StatusInternalServerError)
@@ -38,7 +38,7 @@ func (s *Server) CheckResourceWebHook(dbPipeline db.Pipeline) http.Handler {
 		}
 
 		variables := creds.NewVariables(s.secretManager, dbPipeline.TeamName(), dbPipeline.Name())
-		token, err := creds.NewString(variables, pipelineResource.WebhookToken()).Evaluate()
+		token, err := creds.NewString(variables, dbResource.WebhookToken()).Evaluate()
 		if token != webhookToken {
 			logger.Info("invalid-token", lager.Data{"error": fmt.Sprintf("invalid token for webhook %s", webhookToken)})
 			w.WriteHeader(http.StatusUnauthorized)
@@ -52,13 +52,11 @@ func (s *Server) CheckResourceWebHook(dbPipeline db.Pipeline) http.Handler {
 			return
 		}
 
-		created, err := s.check(pipelineResource, dbResourceTypes, nil)
+		created, err := s.checker.Check(dbResource, dbResourceTypes, nil)
 		if err != nil {
 			s.logger.Error("failed-to-create-check", err)
-			setErr := pipelineResource.SetCheckSetupError(err)
-			if setErr != nil {
-				logger.Error("failed-to-set-check-error", setErr)
-			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 		if created {

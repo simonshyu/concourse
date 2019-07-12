@@ -25,7 +25,6 @@ var _ = Describe("Scanner", func() {
 		err error
 
 		fakeCheckFactory *dbfakes.FakeCheckFactory
-		planFactory      atc.PlanFactory
 		fakeSecrets      *credsfakes.FakeSecrets
 
 		logger  *lagertest.TestLogger
@@ -36,13 +35,10 @@ var _ = Describe("Scanner", func() {
 		fakeCheckFactory = new(dbfakes.FakeCheckFactory)
 		fakeSecrets = new(credsfakes.FakeSecrets)
 
-		planFactory = atc.NewPlanFactory(time.Now().Unix())
-
 		logger = lagertest.NewTestLogger("test")
 		scanner = lidar.NewScanner(
 			logger,
 			fakeCheckFactory,
-			planFactory,
 			fakeSecrets,
 			time.Minute*1,
 			time.Minute*1,
@@ -232,9 +228,9 @@ var _ = Describe("Scanner", func() {
 												Expect(fakeCheckFactory.CreateCheckCallCount()).To(Equal(1))
 											})
 
-											It("creates a plan with an empty version", func() {
+											It("creates a plan with a nil version", func() {
 												_, _, _, plan := fakeCheckFactory.CreateCheckArgsForCall(0)
-												Expect(plan.Check.FromVersion).To(Equal(atc.Version{}))
+												Expect(plan.Check.FromVersion).To(BeNil())
 												Expect(plan.Check.Name).To(Equal("some-name"))
 												Expect(plan.Check.Type).To(Equal("base-type"))
 												Expect(plan.Check.Source).To(Equal(atc.Source{"some": "source"}))

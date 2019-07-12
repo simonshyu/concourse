@@ -44,13 +44,11 @@ func (s *Server) CheckResource(dbPipeline db.Pipeline) http.Handler {
 			return
 		}
 
-		created, err := s.check(dbResource, dbResourceTypes, reqBody.From)
+		created, err := s.checker.Check(dbResource, dbResourceTypes, reqBody.From)
 		if err != nil {
 			s.logger.Error("failed-to-create-check", err)
-			setErr := dbResource.SetCheckSetupError(err)
-			if setErr != nil {
-				logger.Error("failed-to-set-check-error", setErr)
-			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 		if created {

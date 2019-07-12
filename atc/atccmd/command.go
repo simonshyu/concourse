@@ -23,6 +23,7 @@ import (
 	"github.com/concourse/concourse/atc/api/auth"
 	"github.com/concourse/concourse/atc/api/buildserver"
 	"github.com/concourse/concourse/atc/api/containerserver"
+	"github.com/concourse/concourse/atc/api/resourceserver"
 	"github.com/concourse/concourse/atc/auditor"
 	"github.com/concourse/concourse/atc/builds"
 	"github.com/concourse/concourse/atc/creds"
@@ -526,6 +527,7 @@ func (cmd *RunCommand) constructAPIMembers(
 
 	resourceFactory := resource.NewResourceFactory()
 	dbResourceCacheFactory := db.NewResourceCacheFactory(dbConn, lockFactory)
+	checkFactory := db.NewCheckFactory(dbConn, lockFactory)
 	fetchSourceFactory := resource.NewFetchSourceFactory(dbResourceCacheFactory, resourceFactory)
 	resourceFetcher := resource.NewFetcher(clock.NewClock(), lockFactory, fetchSourceFactory)
 	dbResourceConfigFactory := db.NewResourceConfigFactory(dbConn, lockFactory)
@@ -565,17 +567,11 @@ func (cmd *RunCommand) constructAPIMembers(
 	pool := worker.NewPool(clock.NewClock(), lockFactory, workerProvider)
 	workerClient := worker.NewClient(pool, workerProvider)
 
-	checkContainerStrategy := worker.NewRandomPlacementStrategy()
-
-	radarScannerFactory := radar.NewScannerFactory(
-		pool,
-		resourceFactory,
-		dbResourceConfigFactory,
-		cmd.ResourceTypeCheckingInterval,
-		cmd.ResourceCheckingInterval,
-		cmd.ExternalURL.String(),
+	checker := resourceserver.NewChecker(
+		logger,
 		secretManager,
-		checkContainerStrategy,
+		checkFactory,
+		cmd.GlobalResourceCheckTimeout,
 	)
 
 	credsManagers := cmd.CredentialManagers
@@ -601,7 +597,7 @@ func (cmd *RunCommand) constructAPIMembers(
 		dbBuildFactory,
 		dbResourceConfigFactory,
 		workerClient,
-		radarScannerFactory,
+		checker,
 		secretManager,
 		credsManagers,
 		accessFactory,
@@ -790,7 +786,6 @@ func (cmd *RunCommand) constructBackendMembers(
 			lidar.NewScanner(
 				logger.Session("lidar-scanner"),
 				dbCheckFactory,
-				atc.NewPlanFactory(time.Now().Unix()),
 				secretManager,
 				cmd.GlobalResourceCheckTimeout,
 				cmd.ResourceCheckingInterval,
@@ -1325,7 +1320,7 @@ func (cmd *RunCommand) constructAPIHandler(
 	dbBuildFactory db.BuildFactory,
 	resourceConfigFactory db.ResourceConfigFactory,
 	workerClient worker.Client,
-	radarScannerFactory radar.ScannerFactory,
+	checker resourceserver.Checker,
 	secretManager creds.Secrets,
 	credsManagers creds.Managers,
 	accessFactory accessor.AccessFactory,
@@ -1380,7 +1375,7 @@ func (cmd *RunCommand) constructAPIHandler(
 		buildserver.NewEventHandler,
 
 		workerClient,
-		radarScannerFactory,
+		checker,
 
 		reconfigurableSink,
 

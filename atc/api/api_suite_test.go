@@ -51,7 +51,7 @@ var (
 	build                   *dbfakes.FakeBuild
 	dbBuildFactory          *dbfakes.FakeBuildFactory
 	dbTeam                  *dbfakes.FakeTeam
-	fakeScannerFactory      *resourceserverfakes.FakeScannerFactory
+	fakeChecker             *resourceserverfakes.FakeChecker
 	fakeSecretManager       *credsfakes.FakeSecrets
 	credsManagers           creds.Managers
 	interceptTimeoutFactory *containerserverfakes.FakeInterceptTimeoutFactory
@@ -116,7 +116,7 @@ var _ = BeforeEach(func() {
 
 	fakeWorkerClient = new(workerfakes.FakeClient)
 
-	fakeScannerFactory = new(resourceserverfakes.FakeScannerFactory)
+	fakeChecker = new(resourceserverfakes.FakeChecker)
 
 	fakeVolumeRepository = new(dbfakes.FakeVolumeRepository)
 	fakeContainerRepository = new(dbfakes.FakeContainerRepository)
@@ -177,7 +177,7 @@ var _ = BeforeEach(func() {
 
 		fakeWorkerClient,
 
-		fakeScannerFactory,
+		fakeChecker,
 
 		sink,
 
