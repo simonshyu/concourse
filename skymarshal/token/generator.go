@@ -1,9 +1,12 @@
 package token
 
 import (
+	"os"
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"time"
+	"code.cloudfoundry.org/lager"
 
 	"golang.org/x/oauth2"
 	"gopkg.in/square/go-jose.v2"
@@ -48,10 +51,21 @@ func (gen *generator) Generate(claims map[string]interface{}) (*oauth2.Token, er
 		return nil, err
 	}
 
+	var content []byte
+	logger := lager.NewLogger("generator.debug")
+	logger.RegisterSink(lager.NewPrettySink(os.Stdout, lager.ERROR))
+	content, _ = json.Marshal(claims)
+	logger.Info("================================= jwt-signed-claims", lager.Data{
+		"data": string(content),
+	})
+
 	signedToken, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("================================= jwt-signed-token", lager.Data{
+		"token": signedToken,
+	})
 
 	var expiry time.Time
 
